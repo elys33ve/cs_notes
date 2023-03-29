@@ -1,0 +1,143 @@
+
+%d %d 
+
+i1: 
+    0x---(<14)
+
+i2:
+    0x---3
+
+
+b *(phase_4+78)
+
+i r eax
+    =3
+x/8xw $rsp
+
+
+// phase 4
+   0x0000000000001794 <+0>:	endbr64 
+   0x0000000000001798 <+4>:	sub    $0x18,%rsp
+   0x000000000000179c <+8>:	mov    %fs:0x28,%rax
+
+   0x00000000000017a5 <+17>:	mov    %rax,0x8(%rsp)
+   0x00000000000017aa <+22>:	xor    %eax,%eax
+   0x00000000000017ac <+24>:	lea    0x4(%rsp),%rcx
+   0x00000000000017b1 <+29>:	mov    %rsp,%rdx
+   0x00000000000017b4 <+32>:	lea    0x1c01(%rip),%rsi        # 0x33bc
+eax = 0
+rcx = input 2
+rdx = input
+rsi = 0x1c01(%rip)
+
+   0x00000000000017bb <+39>:	call   0x12f0 <__isoc99_sscanf@plt>
+   0x00000000000017c0 <+44>:	cmp    $0x2,%eax
+   0x00000000000017c3 <+47>:	    jne    0x17cb <phase_4+55>
+2 inputs
+eax = 2
+
+   0x00000000000017c5 <+49>:	cmpl   $0xe,(%rsp)
+   0x00000000000017c9 <+53>:	    jbe    0x17d0 <phase_4+60>
+   0x00000000000017cb <+55>:	call   0x1dea <crash_program>
+i1 >= 14
+
+   0x00000000000017d0 <+60>:	mov    $0xe,%edx
+   0x00000000000017d5 <+65>:	mov    $0x0,%esi
+   0x00000000000017da <+70>:	mov    (%rsp),%edi
+edx = 14
+esi = 0
+edi = input
+
+   0x00000000000017dd <+73>:	call   0x1753 <func4>
+
+
+   0x00000000000017e2 <+78>:	cmp    $0x3,%eax
+   0x00000000000017e5 <+81>:	    jne    0x17ee <phase_4+90>
+if eax != 3
+crash
+
+   0x00000000000017e7 <+83>:	cmpl   $0x3,0x4(%rsp)
+   0x00000000000017ec <+88>:	    je     0x17f3 <phase_4+95>
+if input 2 == 0x3
+rtn
+
+   0x00000000000017ee <+90>:	call   0x1dea <crash_program>
+
+   0x00000000000017f3 <+95>:	mov    0x8(%rsp),%rax
+   0x00000000000017f8 <+100>:	xor    %fs:0x28,%rax
+   0x0000000000001801 <+109>:	jne    0x1808 <phase_4+116>
+   0x0000000000001803 <+111>:	add    $0x18,%rsp
+   0x0000000000001807 <+115>:	ret    
+   0x0000000000001808 <+116>:	call   0x1250 <__stack_chk_fail@plt>
+
+
+eax = 3
+i2 = 3
+
+
+
+
+
+// func4
+   0x0000000000001753 <+0>:	endbr64 
+   0x0000000000001757 <+4>:	sub    $0x8,%rsp
+   0x000000000000175b <+8>:	mov    %edx,%eax
+eax = 14
+b4 i1 to b3 i2
+
+   0x000000000000175d <+10>:	sub    %esi,%eax
+eax = 14 - 0
+   0x000000000000175f <+12>:	mov    %eax,%ecx
+ecx = 14 - 0
+
+   0x0000000000001761 <+14>:	shr    $0x1f,%ecx
+ecx = shift right 16 bits
+0
+
+   0x0000000000001764 <+17>:	add    %eax,%ecx
+ecx += eax
+14
+
+   0x0000000000001766 <+19>:	sar    %ecx
+ecx = arithmetic shift right (preserve sign)
+   0x0000000000001768 <+21>:	add    %esi,%ecx
+ecx += 0
+7
+
+   0x000000000000176a <+23>:	cmp    %edi,%ecx
+   0x000000000000176c <+25>:	    jg     0x177a <func4+39>
+if ecx > input
+7 > input
+
+   0x000000000000176e <+27>:	mov    $0x0,%eax
+   0x0000000000001773 <+32>:	    jl     0x1786 <func4+51>
+eax = 0
+if ecx < input
+7 < input
+
+   0x0000000000001775 <+34>:	add    $0x8,%rsp
+   0x0000000000001779 <+38>:	ret    
+
+
+   0x000000000000177a <+39>:	lea    -0x1(%rcx),%edx
+   0x000000000000177d <+42>:	call   0x1753 <func4>
+edx = rcx -1
+loop
+edx = last byte i1
+0xf---
+
+   0x0000000000001782 <+47>:	add    %eax,%eax
+   0x0000000000001784 <+49>:	jmp    0x1775 <func4+34>
+eax += eax
+rtn
+
+   0x0000000000001786 <+51>:	lea    0x1(%rcx),%esi
+   0x0000000000001789 <+54>:	call   0x1753 <func4>
+esi = rcx + 1
+loop
+
+   0x000000000000178e <+59>:	lea    0x1(%rax,%rax,1),%eax
+   0x0000000000001792 <+63>:	jmp    0x1775 <func4+34>
+eax = rax + rax + 1
+eax = 3, rax = 1
+

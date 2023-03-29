@@ -1,0 +1,77 @@
+
+cc program.c            // run normal
+./a.out
+
+cc -g program.c         // debug c
+gdb a.out
+
+gdb program             // debug binary
+
+break [line number]             // break cmds
+break [file_name]:func_name
+b [line number]
+
+run                     // run program
+
+print i                 // print variable inside debugger
+
+disass <function>       // get assembly code for function main
+
+l – list
+p – print
+c – continue
+s – step
+n - next
+d - delete          // just d deletes all breakpoins
+ENTER: pressing enter key would execute the previously executed command again.
+
+
+https://u.osu.edu/cstutorials/2018/09/28/how-to-debug-c-program-using-gdb-in-6-simple-steps/
+
+
+info files  
+b *<entry point adress>         // break at start
+
+info functions                  // get function addresses
+
+
+
+
+info functions      // get function addr
+b *0x01189           // break at start of main
+
+i r <reg>           // get value in register
+
+x/16cb $<reg>       // get string
+x/8xw $<reg>
+
+layout asm          // show assembly
+
+b *(phase_2+34)     // break at line in function
+
+i r eflags          // check flags
+// 
+
+
+
+
+
+gdb --args program passwords.txt        // with inputs
+
+//----------------
+
+0x0001      CF
+0x0002          reserved
+0x0004      PF
+0x0008          reserved
+0x0010      AF
+0x0020          reserved
+0x0040      ZF
+0x0080      SF
+
+0xd920 = 0x00000001 
+0xd924 = 0x00000002 
+0xd928 = 0x00000003 
+0xd92c = 0x00000004
+0xd930 = 0x00000005 
+0xd934 = 0x00000006

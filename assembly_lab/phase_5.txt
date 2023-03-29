@@ -1,0 +1,185 @@
+
+string length = 6
+
+
+
+// phase 5
+   0x000000000000180d <+0>:	endbr64 
+   0x0000000000001811 <+4>:	push   %rbx
+   0x0000000000001812 <+5>:	sub    $0x10,%rsp
+   0x0000000000001816 <+9>:	mov    %rdi,%rbx
+   0x0000000000001819 <+12>:	mov    %fs:0x28,%rax
+   0x0000000000001822 <+21>:	mov    %rax,0x8(%rsp)
+   0x0000000000001827 <+26>:	xor    %eax,%eax
+rdi = input
+rbx = input
+eax = 0
+
+   0x0000000000001829 <+28>:	call   0x1aef <string_length>
+rdi = 0
+eax = len
+
+
+   0x000000000000182e <+33>:	cmp    $0x6,%eax
+   0x0000000000001831 <+36>:	    jne    0x1888 <phase_5+123>     // CRASH
+str length == 6
+
+   0x0000000000001833 <+38>:	mov    $0x0,%eax
+   0x0000000000001838 <+43>:	lea    0x1941(%rip),%rcx        # 0x3180 <array.3473>
+eax = 0
+rcx = 0x1941(%rip)
+
+----------------
+   0x000000000000183f <+50>:	movzbl (%rbx,%rax,1),%edx
+   0x0000000000001843 <+54>:	and    $0xf,%edx
+   0x0000000000001846 <+57>:	movzbl (%rcx,%rdx,1),%edx
+edx = zero extend (rbx + rax)
+    0x000000xx + byte(&input + rax)
+edx &= 0xf
+    0x000000xx + (edx & 0b00001111)
+edx = zero extend (rcx + rdx)
+    0x000000xx + byte(0x1941(%rip) + rdx)
+
+   0x000000000000184a <+61>:	mov    %dl,0x1(%rsp,%rax,1)
+   0x000000000000184e <+65>:	add    $0x1,%rax
+(rsp + rax + 1) = dl            // rdx, edx, dx, dl
+    create array w each letter starting at (rsp + rax + 1)
+rax ++
+
+-----------------
+   0x0000000000001852 <+69>:	cmp    $0x6,%rax
+   0x0000000000001856 <+73>:	    jne    0x183f <phase_5+50>
+if rax != 6
+loop to <+50>
+
+   0x0000000000001858 <+75>:	movb   $0x0,0x7(%rsp)
+   0x000000000000185d <+80>:	lea    0x1(%rsp),%rdi
+   0x0000000000001862 <+85>:	lea    0x18e2(%rip),%rsi        # 0x314b
+0x7+rsp = 0
+rdi = rsp + 1
+rsi = 0x18e2(%rip)
+
+-------------
+   0x0000000000001869 <+92>:	call   0x1b10 <strings_not_equal>
+
+----------------
+   0x000000000000186e <+97>:	test   %eax,%eax
+   0x0000000000001870 <+99>:	    jne    0x188f <phase_5+130>         // CRASH
+need eax == 0
+
+   0x0000000000001872 <+101>:	mov    0x8(%rsp),%rax
+   0x0000000000001877 <+106>:	xor    %fs:0x28,%rax
+   0x0000000000001880 <+115>:	    jne    0x1896 <phase_5+137>         // CRASH
+tst stack fail
+
+   0x0000000000001882 <+117>:	add    $0x10,%rsp
+   0x0000000000001886 <+121>:	pop    %rbx
+   0x0000000000001887 <+122>:	ret   
+
+
+   0x0000000000001888 <+123>:	call   0x1dea <crash_program>
+   0x000000000000188d <+128>:	jmp    0x1833 <phase_5+38>
+   0x000000000000188f <+130>:	call   0x1dea <crash_program>
+   0x0000000000001894 <+135>:	jmp    0x1872 <phase_5+101>
+   0x0000000000001896 <+137>:	call   0x1250 <__stack_chk_fail@plt>
+
+
+
+
+
+// strings not equal
+   0x0000000000001b10 <+0>:	endbr64 
+   0x0000000000001b14 <+4>:	push   %r12
+   0x0000000000001b16 <+6>:	push   %rbp
+   0x0000000000001b17 <+7>:	push   %rbx
+   0x0000000000001b18 <+8>:	mov    %rdi,%rbx
+   0x0000000000001b1b <+11>:	mov    %rsi,%rbp
+rbx = rdi       input
+rbp = rsi       str
+
+   0x0000000000001b1e <+14>:	call   0x1aef <string_length>
+rdi = 0
+eax = len input
+
+   0x0000000000001b23 <+19>:	mov    %eax,%r12d
+   0x0000000000001b26 <+22>:	mov    %rbp,%rdi
+r12d = len input
+rdi = rbp       str
+
+   0x0000000000001b29 <+25>:	call   0x1aef <string_length>
+rdi = 0
+eax = len str
+
+   0x0000000000001b2e <+30>:	mov    %eax,%edx
+   0x0000000000001b30 <+32>:	mov    $0x1,%eax
+edx = len str
+eax = 1
+
+   0x0000000000001b35 <+37>:	cmp    %edx,%r12d
+   0x0000000000001b38 <+40>:	    jne    0x1b6b <strings_not_equal+91>
+if lengths not equal
+rtn 1
+crash
+
+   0x0000000000001b3a <+42>:	movzbl (%rbx),%edx
+   0x0000000000001b3d <+45>:	test   %dl,%dl
+   0x0000000000001b3f <+47>:	    je     0x1b5f <strings_not_equal+79>
+edx = zero extend (rbx) input
+if last byte input == 0
+rtn 0
+good
+
+   0x0000000000001b41 <+49>:	mov    $0x0,%eax
+eax = 0
+
+---- loop
+   0x0000000000001b46 <+54>:	cmp    %dl,0x0(%rbp,%rax,1)
+   0x0000000000001b4a <+58>:	    jne    0x1b66 <strings_not_equal+86>
+if last byte input != 0x0 + rbp + rax
+rtn 1
+crash
+
+   0x0000000000001b4c <+60>:	add    $0x1,%rax
+   0x0000000000001b50 <+64>:	movzbl (%rbx,%rax,1),%edx
+   0x0000000000001b54 <+68>:	test   %dl,%dl
+   0x0000000000001b56 <+70>:	    jne    0x1b46 <strings_not_equal+54>
+rax ++
+edx = zero extend (rbx + rax)
+if last byte edx != 0
+loop to <+54>
+
+   0x0000000000001b58 <+72>:	mov    $0x0,%eax
+   0x0000000000001b5d <+77>:	jmp    0x1b6b <strings_not_equal+91>
+   0x0000000000001b5f <+79>:	mov    $0x0,%eax
+   0x0000000000001b64 <+84>:	jmp    0x1b6b <strings_not_equal+91>
+   0x0000000000001b66 <+86>:	mov    $0x1,%eax
+   0x0000000000001b6b <+91>:	pop    %rbx
+   0x0000000000001b6c <+92>:	pop    %rbp
+   0x0000000000001b6d <+93>:	pop    %r12
+   0x0000000000001b6f <+95>:	ret   
+
+
+
+
+// string length
+   0x0000000000001aef <+0>:	endbr64 
+   0x0000000000001af3 <+4>:	cmpb   $0x0,(%rdi)
+   0x0000000000001af6 <+7>:	    je     0x1b0a <string_length+27>
+need rdi != 0
+
+   0x0000000000001af8 <+9>:	mov    $0x0,%eax
+   0x0000000000001afd <+14>:	add    $0x1,%rdi
+   0x0000000000001b01 <+18>:	add    $0x1,%eax
+eax = 0
+rdi ++
+eax ++
+
+   0x0000000000001b04 <+21>:	cmpb   $0x0,(%rdi)
+   0x0000000000001b07 <+24>:	jne    0x1afd <string_length+14>
+   0x0000000000001b09 <+26>:	ret  
+rdi = 0
+eax = len
+
+   0x0000000000001b0a <+27>:	mov    $0x0,%eax
+   0x0000000000001b0f <+32>:	ret    
+

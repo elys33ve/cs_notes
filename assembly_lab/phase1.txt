@@ -1,0 +1,172 @@
+
+rdi - input str
+
+rsp  = rsp - 0x8
+rsi  = 0x1b4a(%rip)
+
+
+"I have lost my guitar!"
+
+
+// phase 1   
+   0x00000000000015db <+0>:	endbr64 
+   0x00000000000015df <+4>:	sub    $0x8,%rsp                                // rsp = rsp - 0x8
+   0x00000000000015e3 <+8>:	lea    0x1b4a(%rip),%rsi        # 0x3134        // put address 0x1b4a + %rip into %rsi
+   0x00000000000015ea <+15>:	call   0x1b10 <strings_not_equal>           // call strings_not_equal
+   0x00000000000015ef <+20>:	test   %eax,%eax                            // -- eax should not be zero
+   0x00000000000015f1 <+22>:	jne    0x15f8 <phase_1+29>                  // test of %eax anything other than zero -- crash if not zero
+   0x00000000000015f3 <+24>:	add    $0x8,%rsp                            // put rsp + 0x8 into rsp
+   0x00000000000015f7 <+28>:	ret    
+   0x00000000000015f8 <+29>:	call   0x1dea <crash_program>
+   0x00000000000015fd <+34>:	jmp    0x15f3 <phase_1+24>
+
+%rsp = rsp - 0x8                // 
+%rsi = 0x1b4a + rip
+%eax = <strings_not_equal>
+= eax & eax
+    ZF = [1 if result = 0]
+    SF = msb
+if ZF = 1
+    rtn crash
+
+%rsp = rsp + 0x8
+
+
+
+sub a, b        // into a -> a-b
+lea a, b        // place adress of b into a     --      lea <reg>, <mem>
+
+test a, b       // set SF to msb, ZF to 1 if result = zero
+jne <label>     // jump when not equal
+
+
+// strings not equal
+   0x0000000000001b10 <+0>:	endbr64 
+   0x0000000000001b14 <+4>:	push   %r12                                 //
+   0x0000000000001b16 <+6>:	push   %rbp
+   0x0000000000001b17 <+7>:	push   %rbx
+   0x0000000000001b18 <+8>:	mov    %rdi,%rbx
+   0x0000000000001b1b <+11>:	mov    %rsi,%rbp
+   0x0000000000001b1e <+14>:	call   0x1aef <string_length>
+   0x0000000000001b23 <+19>:	mov    %eax,%r12d
+   0x0000000000001b26 <+22>:	mov    %rbp,%rdi
+   0x0000000000001b29 <+25>:	call   0x1aef <string_length>
+   0x0000000000001b2e <+30>:	mov    %eax,%edx
+   0x0000000000001b30 <+32>:	mov    $0x1,%eax
+   0x0000000000001b35 <+37>:	cmp    %edx,%r12d
+   0x0000000000001b38 <+40>:	jne    0x1b6b <strings_not_equal+91>
+   0x0000000000001b3a <+42>:	movzbl (%rbx),%edx                      // one byte of *rbx and zero extends 32 bit -- 0x000000xx
+   0x0000000000001b3d <+45>:	test   %dl,%dl
+   0x0000000000001b3f <+47>:	je     0x1b5f <strings_not_equal+79>
+   0x0000000000001b41 <+49>:	mov    $0x0,%eax
+   0x0000000000001b46 <+54>:	cmp    %dl,0x0(%rbp,%rax,1)
+   0x0000000000001b4a <+58>:	jne    0x1b66 <strings_not_equal+86>
+   0x0000000000001b4c <+60>:	add    $0x1,%rax
+   0x0000000000001b50 <+64>:	movzbl (%rbx,%rax,1),%edx           
+   0x0000000000001b54 <+68>:	test   %dl,%dl
+   0x0000000000001b56 <+70>:	jne    0x1b46 <strings_not_equal+54>
+   0x0000000000001b58 <+72>:	mov    $0x0,%eax
+   0x0000000000001b5d <+77>:	jmp    0x1b6b <strings_not_equal+91>
+   0x0000000000001b5f <+79>:	mov    $0x0,%eax
+   0x0000000000001b64 <+84>:	jmp    0x1b6b <strings_not_equal+91>
+   0x0000000000001b66 <+86>:	mov    $0x1,%eax
+   0x0000000000001b6b <+91>:	pop    %rbx
+   0x0000000000001b6c <+92>:	pop    %rbp
+   0x0000000000001b6d <+93>:	pop    %r12
+   0x0000000000001b6f <+95>:	retq
+
+---
+rdi  = input str
+rsp  = rsp - 0x8
+rsi  = 0x1b4a(%rip)
+
+
+rbx = input str
+rbp = 0x1b4a(%rip)
+
+incr rdi in str len
+eax = len input
+r12d = len input
+rdi = 0x1b4a(%rip)
+
+incr rdi in str len
+eax = len str
+edx = len str 
+eax = 0x01
+
+cmp edx, r12d -- str and input
+    input - str
+
+
+
+
+
+--==-----
+
+%r12 = <pushed to stack>
+%rbp = <pushed to stack>
+%rbx = <pushed to stack>
+
+%rbx = rdi
+%rbp = rsi
+%r12d = <string_length>     // eax
+%rdi = rbp
+%edx = <string_length>      // eax
+%eax = 0x1
+= r12d - edx
+    ZF = [1 if equal]
+    CF = [1 if dst < src]
+
+if ZF = 1                 
+    rtn crash
+
+%edx = 0x000000<*rbx>
+= dl & dl
+    ZF = [1 if result = 0]
+    SF = msb
+
+if ZF = 0
+    rtn crash
+
+%eax = 0
+--- 
+= (0x0 + (rbp + rax)) - dl
+    ZF = [1 if equal]
+    CF = [1 if dst < src]
+
+if ZF = 1
+    rtn pass
+
+%rax = rax + 0x1
+%edx = [zero ex. (rbx + rax)]
+= dl & dl
+    ZF = [1 if result = 0]
+    SF = msb
+
+if ZF = 1                 
+    loop ---
+else
+    rtn crash
+
+
+
+// string length
+   0x0000000000001aef <+0>:	endbr64
+   0x0000000000001af3 <+4>:	cmpb   $0x0,(%rdi)
+   0x0000000000001af6 <+7>:	je     0x1b0a <string_length+27>
+   0x0000000000001af8 <+9>:	mov    $0x0,%eax
+   0x0000000000001afd <+14>:	add    $0x1,%rdi
+   0x0000000000001b01 <+18>:	add    $0x1,%eax
+   0x0000000000001b04 <+21>:	cmpb   $0x0,(%rdi)
+   0x0000000000001b07 <+24>:	jne    0x1afd <string_length+14>
+   0x0000000000001b09 <+26>:	retq
+   0x0000000000001b0a <+27>:	mov    $0x0,%eax
+   0x0000000000001b0f <+32>:	retq
+
+
+
+(%rdi) -> points to the string
+check for null char
+
+rdi = string
+eax = length

@@ -1,0 +1,162 @@
+gdb program
+
+info files
+info functions
+
+disass <funtion>
+disass <funtion>
+
+    // look for scanf, break on next line
+
+b <function>
+b *<addr>
+
+
+//-------- phase 1
+
+break main
+break phase_1
+
+disass phase_1
+b strings_not_equal
+
+x/32cb $rsi
+
+signal SIGINT
+
+"I have lost my guitar!"
+
+
+//------- phase 2
+// 0x01000000 = 16777216
+// 4 bytes per number, 6 integers 
+
+// gdb --args program passwords.txt
+
+b crash_program
+b phase_2
+b read_six_numbers
+b *(phase_2+34)
+
+x/24xb $rsp
+
+"1 2 4 8 16 32"
+
+
+// -------- phase 3
+
+// input: 123 456 = 0x7b 0x1c8
+
+(gdb) x/8xw $rdx
+0x555555557160:	0xffffe563	0xffffe5b1	0xffffe5b8	0xffffe5bf
+0x555555557170:	0xffffe5c6	0xffffe5cd	0xffffe5d4	0xffffe5db
+(gdb) i r rdx
+rdx            0x555555557160      93824992244064
+
+rax            0x55555555571f      93824992237343
+
+
+s=0x555555559760 <input_strings+160> "11 22 33"
+
+0x213
+add 0b5
+sub 137
+
+b*(phase_3+76)
+rax=2       // 3 3
+
+rip = 0x5555555556b9        1 1
+rax = 0x555555555718        2 2
+
+x = 0x555555557167
+
+4 4
+4
+rax = -6714
+rdx = 93824992244064
+93824992237350
+
+3 3
+3
+rax = -6721
+rdx = 93824992244064
+93824992237343
+
+2 2
+2
+rax = -6728
+rdx = 93824992244064
+93824992237336
+
+1 1
+2
+rax = -6735
+rdx = 93824992237329 + 6735
+
+(-6735 + 7x) + 93824992244064 = 0x555555555747
+
+0x555555555747 = x + (x + 4*rax)
+
+
+// ------- phase 4
+
+input   eax     rsp
+1 3     0       
+2 3     0
+4 3     0
+6 3     6  
+12 3    3
+
+
+// -------- phase 5
+
+
+b *(phase_5+50)
+b *(phase_5+69)
+b *(phase_5+92)
+b *(phase_5+97)
+
+
+abcdef
+        rax     eax     rdi         rsi         rsp         rbx         rcx
+50      0       0       000000      --          000000      abcdef      maduiers nfotvbyl
+69      1       1       000000                              abcdef      maduiers nfotvbyl
+92      6       6       aduier      devils      aduier      abcdef      maduiers nfotvbyl
+97      1       1       000000      devils      aduier      000000      maduiers nfotvbyl
+
+69
+edx = 97, 100, 117, 105, 101, 114
+edx = a, d, u, i, e, r
+
+bcdaef
+        rdi         rsi         rsp         rbx         rcx
+69      000000      --                      bcdaef      maduiers nfotvbyl
+92      duiaer      devils
+97      
+
+be  mdpg
+b = d
+e = e
+l = v
+d = i
+o = l
+g = s
+
+beldog
+
+
+0x7fffffffd940
+
+
+0x555555557180 <array.3473>:	109 'm'	97 'a'	100 'd'	117 'u'	105 'i'	101 'e'	114 'r'	115 's'
+0x555555557188 <array.3473+8>:	110 'n'	102 'f'	111 'o'	116 't'	118 'v'	98 'b'	121 'y'	108 'l'
+0x555555557190:	87 'W'	111 'o'	119 'w'	33 '!'	32 ' '	89 'Y'	111 'o'	117 'u'
+0x555555557198:	39 '\''	118 'v'	101 'e'	32 ' '	117 'u'	110 'n'	108 'l'	111 'o'
+0x5555555571a0:	99 'c'	107 'k'	101 'e'	100 'd'	32 ' '	116 't'	104 'h'	101 'e'
+0x5555555571a8:	32 ' '	115 's'	101 'e'	99 'c'	114 'r'	101 'e'	116 't'	32 ' '
+0x5555555571b0:	115 's'	116 't'	97 'a'	103 'g'	101 'e'	33 '!'	0 '\000'	0 '\000'
+0x5555555571b8:	83 'S'	111 'o'	32 ' '	121 'y'	111 'o'	117 'u'	32 ' '	116 't'
+
+
+
+

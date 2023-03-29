@@ -1,0 +1,129 @@
+- 6 numbers
+
+// phase 2
+   0x00000000000015ff <+0>:	endbr64 
+   0x0000000000001603 <+4>:	push   %rbp
+   0x0000000000001604 <+5>:	push   %rbx
+   0x0000000000001605 <+6>:	sub    $0x28,%rsp
+   0x0000000000001609 <+10>:	mov    %fs:0x28,%rax
+   0x0000000000001612 <+19>:	mov    %rax,0x18(%rsp)
+   0x0000000000001617 <+24>:	xor    %eax,%eax
+   0x0000000000001619 <+26>:	mov    %rsp,%rsi
+   0x000000000000161c <+29>:	call   0x1e2c <read_six_numbers>
+
+   0x0000000000001621 <+34>:	cmpl   $0x1,(%rsp)                  // cmp byte rsp - 1 (should = 0)
+   0x0000000000001625 <+38>:	jne    0x1631 <phase_2+50>
+   0x0000000000001627 <+40>:	mov    %rsp,%rbx
+   0x000000000000162a <+43>:	lea    0x14(%rsp),%rbp
+   0x000000000000162f <+48>:	jmp    0x1646 <phase_2+71>
+   0x0000000000001631 <+50>:	call   0x1dea <crash_program>
+   0x0000000000001636 <+55>:	jmp    0x1627 <phase_2+40>
+   0x0000000000001638 <+57>:	call   0x1dea <crash_program>
+
+   0x000000000000163d <+62>:	add    $0x4,%rbx
+   0x0000000000001641 <+66>:	cmp    %rbp,%rbx
+   0x0000000000001644 <+69>:	je     0x1651 <phase_2+82>
+
+   0x0000000000001646 <+71>:	mov    (%rbx),%eax
+   0x0000000000001648 <+73>:	add    %eax,%eax
+   0x000000000000164a <+75>:	cmp    %eax,0x4(%rbx)
+   0x000000000000164d <+78>:	je     0x163d <phase_2+62>
+   0x000000000000164f <+80>:	jmp    0x1638 <phase_2+57>
+   0x0000000000001651 <+82>:	mov    0x18(%rsp),%rax
+   0x0000000000001656 <+87>:	xor    %fs:0x28,%rax
+   0x000000000000165f <+96>:	jne    0x1668 <phase_2+105>
+   0x0000000000001661 <+98>:	add    $0x28,%rsp
+   0x0000000000001665 <+102>:	pop    %rbx
+   0x0000000000001666 <+103>:	pop    %rbp
+   0x0000000000001667 <+104>:	ret    
+   0x0000000000001668 <+105>:	call   0x1250 <__stack_chk_fail@plt>
+
+rsp = input
+rbx = input
+
+check first == 0x00000001
+
+rbp = sixth input addr + 4
+eax = 1
+eax = 2
+
+check second == 0x00000002
+
+rbx = second
+check second != sixth
+eax = second + second
+
+check third == 0x00000004
+
+rbx = third
+.....
+check fourth == 0x00000008
+check fifth == 0x00000010
+
+rbx = sixth
+
+rax = 0x18 + rsp 
+
+1 2 4 8 16 32 
+
+------
+
+rsp -= 0x28
+
+rax = fs:0x28
+0x18(rsp) = rax
+eax = 0
+rsi = rsp
+
+<read 6 nums>
+rsp = input
+eax >= 6
+
+= 0x1 == (rsp)      // byte of rsp
+
+rbx = rsp
+rbp = 0x14(rsp)
+eax = (rbx)
+eax += eax
+
+= 0x4(rbx) == eax
+
+rbx += 0x4
+
+= rbp == rbx
+
+rax = 0x18(rsp)
+
+= fs:0x28 XOR rax == 0
+
+rsp += 0x28
+
+------
+
+
+// read six numbers
+   0x0000000000001e2c <+0>:	endbr64 
+   0x0000000000001e30 <+4>:	sub    $0x8,%rsp
+   0x0000000000001e34 <+8>:	mov    %rsi,%rdx
+   0x0000000000001e37 <+11>:	lea    0x4(%rsi),%rcx
+   0x0000000000001e3b <+15>:	lea    0x14(%rsi),%rax
+   0x0000000000001e3f <+19>:	push   %rax
+   0x0000000000001e40 <+20>:	lea    0x10(%rsi),%rax
+   0x0000000000001e44 <+24>:	push   %rax
+   0x0000000000001e45 <+25>:	lea    0xc(%rsi),%r9
+   0x0000000000001e49 <+29>:	lea    0x8(%rsi),%r8
+   0x0000000000001e4d <+33>:	lea    0x155c(%rip),%rsi        # 0x33b0
+   0x0000000000001e54 <+40>:	mov    $0x0,%eax
+   0x0000000000001e59 <+45>:	call   0x12f0 <__isoc99_sscanf@plt>
+   0x0000000000001e5e <+50>:	add    $0x10,%rsp
+   0x0000000000001e62 <+54>:	cmp    $0x5,%eax
+   0x0000000000001e65 <+57>:	jle    0x1e6c <read_six_numbers+64>
+   0x0000000000001e67 <+59>:	add    $0x8,%rsp
+   0x0000000000001e6b <+63>:	ret    
+   0x0000000000001e6c <+64>:	call   0x1dea <crash_program>
+
+
+rsp = input
+
+rsp += 0x10
+eax = number of things it parsed 
