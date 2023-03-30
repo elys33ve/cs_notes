@@ -1,0 +1,33 @@
+lab 3:
+- buffer overflow exploits
+- secure/safegaurding programs
+- compiler/os features to decrease vulnerability
+- stack and parameter passing of x86-64 machine code
+- how x86-64 machine code is encoded
+- use debugging tools
+
+
+
+
+
+files:
+README.txt: A file describing the contents of the directory
+ctarget: An executable program vulnerable to code-injection attacks
+cookie.txt: An 8-digit hex code that you will use as a unique identifier in your attacks.
+hex2raw: A utility to generate attack strings.
+
+
+
+ctarget takes several different command line arguments:
+-h: Print list of possible command line arguments
+-q: Don’t send results to the grading server
+-i FILE: Supply input from a file, rather than from standard input
+
+
+more notes:
+- buffer size is a compile time constant Gets() takes an input sequence of bytes to store in an array. if the size of input is too short, nothing will happen, if its too long itll cause a segmentation fault.
+- the goal is to be more creative with the exploit strings
+- exploit strings contain byte values that dont correspond to ascii values for printing characters (HEX2RAW generates these raw strings)
+
+--- exploit strs cannot contain value 0x0a at any intermediate position since its ascii for '\n' and Gets() will assume its terminating the str
+--- HEX2RAW expects 2 digit hex values separated by one or more whitespace: 0xdeadbeef = ef be ad de

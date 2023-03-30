@@ -1,0 +1,59 @@
+Phase 1 / Level 1
+
+- wont inject new code, exploit str will redirect program to execute an existing procedure
+
+----------------------------
+./hex2raw < strs.txt | ./ctarget
+
+getbuf is called within ctarget by function test
+when getbuf returns, it returns to function test
+
+get ctarget to execute code for touch1 when getbuf returns, rather than returning to test
+
+notes:
+- use "objdump -d" to get dissassembled version of ctarget
+- the idea is to position a byte representation of the starting address for touch1 so that getbuf will 
+return to function touch1 (Be careful about byte ordering)
+- placement of buf within the stack frame for getbuf depends on the value of compile-time
+constant BUFFER_SIZE, as well the allocation strategy used by GCC. examine the disassembled code to 
+determine its position
+
+
+(function addresses from objdump)
+getbuf =    0x0000000000001db1
+test =      0x0000000000001fa0 
+touch1 =    0x0000000000001dcb
+
+hex2raw test:
+"teststr" = 74 65 73 74 73 74 72    // get_hex.py
+"tst" = 74 73 74
+
+
+----- C functions
+
+// getbuf
+// reads strings from random input
+unsigned getbuf() {
+    char buf[BUFFER_SIZE];
+    Gets(buf);
+    return 1;
+}
+
+
+// test
+void test() {
+    int val;
+    val = getbuf();
+    printf("No exploit. Getbuf returned 0x%x\n", val);
+}
+
+
+// touch1
+void touch1() {
+    vlevel = 1;         // part of validation protocol
+    printf("Touch1!: You called touch1()\n");
+    validate(1);
+    exit(0);
+}
+
+
