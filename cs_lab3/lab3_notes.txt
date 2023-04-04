@@ -27,3 +27,28 @@ more notes:
 
 --- exploit strs cannot contain value 0x0a at any intermediate position since its ascii for '\n' and Gets() will assume its terminating the str
 --- HEX2RAW expects 2 digit hex values separated by one or more whitespace: 0xdeadbeef = ef be ad de
+
+
+
+nano strs.txt
+./hex2raw < lvl1.txt > exploits.txt
+./hex2raw < lvl2.txt > exploits.txt
+./hex2raw < lvl3.txt > exploits.txt
+
+
+gdb ctarget
+
+b *(getbuf+25)
+run < exploits.txt -q
+
+watch $rip
+watch $rsp
+watch $rdi
+
+x/64xb 0x55618d98
+x/64xb $rdi 
+
+b *(touch3+27)
+b *(touch3+32)
+b *(getbuf+25)
+run < exploits.txt -q
