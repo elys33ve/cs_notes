@@ -7,15 +7,11 @@ lab 3:
 - use debugging tools
 
 
-
-
-
 files:
-README.txt: A file describing the contents of the directory
-ctarget: An executable program vulnerable to code-injection attacks
-cookie.txt: An 8-digit hex code that you will use as a unique identifier in your attacks.
-hex2raw: A utility to generate attack strings.
-
+README.txt:     A file describing the contents of the directory
+ctarget:        An executable program vulnerable to code-injection attacks
+cookie.txt:     An 8-digit hex code that you will use as a unique identifier in your attacks.
+hex2raw:        A utility to generate attack strings.
 
 
 ctarget takes several different command line arguments:

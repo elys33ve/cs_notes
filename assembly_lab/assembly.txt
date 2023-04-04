@@ -1,12 +1,15 @@
-x, y
+------------- assembly syntax notes -------------
 
+
+
+
+x, y
 je -- ZF = 1
 jne -- ZF = 0
 jle -- y <= x
 ja -- x < (unsigned) y
 jbe -- (unsigned) x <= y
 jg -- x < y
-
 
 cmp -- y - x
 test -- x & y

