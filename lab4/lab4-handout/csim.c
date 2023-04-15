@@ -8,7 +8,6 @@
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
-#include <math.h>
 #include "lab4.h"
 
 /*  Cache Simulator lab
@@ -27,8 +26,21 @@ cache size = S * E * B
 - ignore request sizes in valgrind traces
 */
 
+bool debug = false;
+bool verbose = false;
 
-bool VERBOSE = false;
+
+int E;      // lines per set
+int total_hits, total_misses, total_evictions;      // totals for printsummary()
+
+
+// struct for each tracefile line
+typedef struct {
+    int valid;
+    unsigned long int tag;
+    int lru;
+} cache_line;
+
 
 
 // print all argument options
@@ -71,7 +83,7 @@ void arguments(int *s, int *E, int *b, char **t, int argc, char *argv[]) {
                 print_help();
                 exit(1);
             case 'v':               // verbose mode
-                VERBOSE = true;
+                verbose = true;
                 break;
             case 's':               // set index bits
                 *s = atoi(optarg);
@@ -93,51 +105,165 @@ void arguments(int *s, int *E, int *b, char **t, int argc, char *argv[]) {
 }
 
 
+// check cache ( look for hit, miss, eviction and update)
+void check_cache(int tag, int set, int idx, cache_line **cache) {
+    /*  valid bit = 1 && tag matches        : hit
+        tag doesn't match                   : miss
+        tag doesn't match && all valid      : miss & eviction
+    *//*   
+        look for valid line in set to compare tag
+        if matches (hit)
+        if no match found, get first invalid and replace tag (miss)
+        if no match found and all lines valid, get LRU line to evict (miss & eviction)
+   */
+    // look for valid line w matching tag in set given by address (check for hit)
+    for (int i=0; i<E; i++) {
+        
+        if (cache[set][i].valid == 1 && cache[set][i].tag == tag) {
+            cache[set][i].lru = idx;        // update age
+            total_hits++;
+            if (verbose) { printf(" hit"); }
+            return;
+        }
+    } // (no matches)
+    total_misses++;
 
+    // get first invalid and replace
+    int lru = 0;        // to compare lru
+    for (int i=0; i<E; i++) {
+        if (cache[set][i].valid == 0) {     // look for invalid
+            // replace
+            cache[set][i].valid = 1;
+            cache[set][i].tag = tag;
+            cache[set][i].lru = idx;
+            if (verbose) { printf(" miss"); }
+            return;
+        } else {
+            // if update for least recently used
+            if (cache[set][lru].lru > cache[set][i].lru) { lru = i; }
+        }
+    } // (no lines invalid)
+    total_evictions++;
+
+    // evict and replace
+    if (verbose) { printf(" miss eviction"); }
+    cache[set][lru].valid = 1;
+    cache[set][lru].tag = tag;
+    cache[set][lru].lru = idx;
+    return;    
+}
 
 
 
 
 
 int main(int argc, char *argv[]) {
-    int total_hits, total_misses, total_evictions;      // totals for printsummary()
+    // argument variables  ( s, E, b, t )
+    int set_idx_bits;           // s : number of set index bits
+    int num_sets = 1;           // S : number of sets (2^s)
+    int lines_per_set;          // E : number of lines per set (associativity)
+    int block_bits;             // b : number of block bits (block size = 2^b)
+    char *filename;             // t : name of valgrind trace to replay
 
-    // arguments s, E, b, t
-    int set_index_bits;     // s : number of set bits (S = 2^s is the number of sets)
-    int lines_per_set;      // E : associativity (number of lines per set)
-    int num_block_bits;     // v : number of block bits (B = 2^b is the block size)
-    char *filename;         // t : name of valgrind trace to replay
-
-
-    // get input arguments
-    arguments(&set_index_bits, &lines_per_set, &num_block_bits, &filename, argc, argv);
+    // ------- get input arguments -------
+    arguments(&set_idx_bits, &lines_per_set, &block_bits, &filename, argc, argv);
     //printf("args: -s %d -E %d -b %d -t %s\n", set_index_bits, lines_per_set, num_block_bits, tracefile);
+    E = lines_per_set;
+    for (int i=0; i<set_idx_bits; i++) { num_sets *= 2; }   // get number of sets 
+    // (it was complaining abt pow() so this was easier)
 
 
-    // tracefile
-    FILE *tracefile  = fopen(filename, "r");  
-    char *filecontents;
-    char line[500];
 
-    // open tracefile
-    if (!tracefile) {                // if file cannot be opened
-        printf("%s: No such file or directory\n", filename);
+
+
+    // cache variables
+    char operation;
+    long unsigned int addr;
+    unsigned int set_idx, tag;
+    int size;
+
+    // ------- allocate memory for cache struct -------
+    cache_line **cache_array = malloc(sizeof(cache_line) * num_sets); 
+    // check for allocation error
+    if (cache_array == NULL) {
+        printf("memory allocation error\n");
         exit(1);
     }
-
-    // get file contents
-    while (fgets(line, sizeof(line), tracefile)) {
-        printf("%s", line);
+    // allocate space for lines in each set
+    for (int i=0; i<num_sets; i++) {
+        cache_array[i] = malloc(sizeof(cache_line) * lines_per_set);    // allocate memory for cache line
+        // check for error
+        if (cache_array == NULL) {
+            printf("memory allocation error\n");
+            exit(1);
+        }
     }
+
+
+
+
+    // tracefile variables
+    FILE *tracefile  = fopen(filename, "r");  
+    char str_line[64];          // temp str for line in file
+    int addr_len = 64;          // length of addr in bits
+    
+    // if file cannot be opened
+    if (!tracefile) {                
+        printf("%s: No such file or directory\n", filename);
+        exit(1);
+    }   
+
+    
+
+    // ------- parse file contents and check cache -------
+    int idx = 0;
+    int s = set_idx_bits;
+    int b = block_bits;
+    while (fgets(str_line, sizeof(str_line), tracefile) != NULL) {
+        idx++;
+
+        // ignore if first char in line is not space (ignore 'I')
+        if (str_line[0] == ' ') {
+            // get line contents
+            sscanf(str_line, " %c %lx,%d", &operation, &addr, &size);           
+            tag = (addr >> s) >> b;                                         // parse tag
+            set_idx = ((addr << (addr_len - (s + b))) >> (addr_len - s));   // parse set idx
+
+            if (verbose) { printf("%c %lx,%d", operation, addr, size); }    // print for verbose
+
+            // L : load
+            if (operation == 'L') {
+                check_cache(tag, set_idx, idx, cache_array);    // load
+            } 
+            // S : store
+            else if (operation == 'S') {
+                check_cache(tag, set_idx, idx, cache_array);    // store
+            } 
+            // M : modify (load + store)
+            else if (operation == 'M') {
+                check_cache(tag, set_idx, idx, cache_array);    // load (modify)
+                check_cache(tag, set_idx, idx, cache_array);    // store (modify)
+            }
+            if (verbose) { printf("\n"); }  // print for verbose
+
+            
+            if (debug) {
+                printf("%c %lx,%d\n", operation, addr, size);
+                printf("%x,%x\n", tag, set_idx);
+            }
+        }
+    }
+    fclose(tracefile);        // close tracefile
+
+    
     
 
 
-    fclose(tracefile);
-    
-    
+    // ------- de-allocate memory -------
+    for (int i=0; i<num_sets; i++) { free(cache_array[i]); }
+    free(cache_array);
 
 
-
-    //printSummary(total_hits, total_misses, total_evictions);      // total number of (hits, misses, evictions)
+    printSummary(total_hits, total_misses, total_evictions);      // total number of (hits, misses, evictions)
     return 0;
 }

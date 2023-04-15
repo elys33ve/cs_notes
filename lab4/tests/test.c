@@ -95,79 +95,34 @@ void arguments(int *s, int *E, int *b, char **t, int argc, char *argv[]) {
 int main(int argc, char *argv[]) {
     int total_hits, total_misses, total_evictions;      // totals for printsummary()
 
-    // arguments s, E, b, t
-    int set_index_bits;     // s : number of set bits (S = 2^s is the number of sets)
-    int lines_per_set;      // E : associativity (number of lines per set)
-    int num_block_bits;     // v : number of block bits (B = 2^b is the block size)
-    char *filename;         // t : name of valgrind trace to replay
+    int set_idx_bits;           // s : number of set index bits
+    int num_sets = 1;           // S : number of sets (2^s)
+    int lines_per_set;          // E : number of lines per set (associativity)
+    int block_bits;             // b : number of block bits (block size = 2^b)
+    char *filename;             // t : name of valgrind trace to replay
 
-
-    // get input arguments
-    arguments(&set_index_bits, &lines_per_set, &num_block_bits, &filename, argc, argv);
+    // ------- get input arguments -------
+    arguments(&set_idx_bits, &lines_per_set, &block_bits, &filename, argc, argv);
     //printf("args: -s %d -E %d -b %d -t %s\n", set_index_bits, lines_per_set, num_block_bits, tracefile);
-
+    
+    for (int i=0; i<set_idx_bits; i++) { num_sets *= 2; }
+    printf("%d^%d = %d\n", 2, set_idx_bits, num_sets);
 
 
 
 
     // open tracefile
-    FILE *tracefile  = fopen(filename, "r");  
+    FILE *tracefile;
     char str_line[50];          // temp str for line in file
     int nlines = 0;             // number of lines in file
     char *op, *addr, *sz;       // operation letter, address, size
     unsigned long int addr_lu;
 
-    if (!tracefile) {                // if file cannot be opened
-        printf("%s: No such file or directory\n", filename);
-        exit(1);
-    }
-
-    // get number of lines in file
-    while (fgets(str_line, sizeof(str_line), tracefile)) { nlines++; }      
-
-    // allocate memory for lines array
-    cache_line **lines = malloc(sizeof(cache_line)*(nlines-1));
-
-
-    // parse file contents
-    int idx = 0;
-    tracefile = fopen(filename, "r");
-    while (fgets(str_line, sizeof(str_line), tracefile)) {
-        if (str_line[0] == ' ') {
-            op = strtok(str_line, " ");     // get operation
-            addr = strtok(NULL, ",");       // get address
-            sz = strtok(NULL, "\n");        // get size
-
-            // add to struct cache_line
-            if (op != NULL && addr != NULL && sz != NULL) {
-                lines[idx] = malloc(sizeof(cache_line)); 
-                lines[idx]->operation = *op;
-                lines[idx]->address = (int)strtol(addr, NULL, 16);
-                strcpy(lines[idx]->addr_str, addr);
-                lines[idx]->op_size = atoi(sz);
-                idx++;
-            }
-        }
-    } nlines = idx;
-    fclose(tracefile);        // close tracefile
-
-
-
-
-
-
-
-
-    // verbose output
-    if (verbose == true) {
-        for (int i=0; i<nlines; i++) {
-            printf(" %c %s,%d {hit/miss}\n", lines[i]->operation, lines[i]->addr_str, lines[i]->op_size);
-        }
-    }
     
-    // de-allocate memory
-    for (int i=0; i<nlines; i++) { free(lines[i]); }
-    free(lines);
+   
+
+
+
 
     //printSummary(total_hits, total_misses, total_evictions);      // total number of (hits, misses, evictions)
     return 0;
