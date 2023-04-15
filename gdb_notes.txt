@@ -50,7 +50,10 @@ layout asm          // show assembly
 b *(phase_2+34)     // break at line in function
 
 i r eflags          // check flags
-// 
+
+
+
+
 
 
 

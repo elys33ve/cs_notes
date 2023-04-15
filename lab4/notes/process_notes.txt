@@ -1,0 +1,26 @@
+E = input -- lines per sets
+e = log2(E)
+s = input
+S = 2^s sets
+b = input
+B = 2^b bytes per cache block
+
+
+- get s, E, b, tracefile name from arguments
+
+- open file and allocate space for structures
+- get file contents
+
+
+- get operation letter from input
+- get address from input
+- get size from input
+
+--- convert addr from str to hex
+--- get tag from address
+--- get block offset
+--- get set from addr
+--- get valid bit
+
+---
+

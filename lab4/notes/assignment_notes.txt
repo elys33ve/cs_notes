@@ -1,0 +1,113 @@
+lab 4
+----------
+
+- cache simulator lab
+
+- write cache simulator in csim.c that takes valgrind memory trace as input,
+simulates hit/miss behavior of cache mem on this trace, and outputs the 
+total number of hits, misses, and evictions
+
+- csim-ref = binary exe of a reference cache simulator. simulates behavior of a cache with arbitraty size and associativity on a 
+valgrind trace file (uses LRU (least recently used) replacement policy when chooseing cache line to evict)
+
+- fill in the csim.c file so that it takes the same command line arguments and produces the identical output as the reference.
+
+
+--rules:
+- include name, ucid, in header comment
+- must compile without warnings
+- must work correctly for arbitrary s, E, and b. (allocate storage for simulators data
+structures using malloc)
+- only interested in data chace performance so ignore all instruction cache accesses
+- must call the function printsummary() with total number of hits misses and evictions 
+at the end of main fucntion
+printSummary(hit_count, miss_count, eviction_count);
+- assume memory accesses are aligned properly, that a single memory access never crosses block boundries
+so ignore request sizes in valgrind traces
+
+
+- initial debugging on small traces such as traces/dave.trace
+
+
+- driver program: (python 2.7)
+python driver.py
+------
+---------   valgrind
+valgrind --log-fd=1 --tool=lackey -v --trace-mem=yes ls -l
+
+Each line denotes one or two memory accesses. The format of each line is
+[space]operation address,size
+The operation field denotes the type of memory access:
+
+"I” denotes an instruction load,
+“L” a data load,
+“S” a data store, and
+“M” a data modify (i.e., a data load followed by a data store)
+
+There is never a space before each “I”. There is always a space before each “M”, “L”, and “S”.
+
+The address field specifies a 64-bit hexadecimal memory address.
+The size field specifies the number of bytes accessed by the operation
+
+
+
+
+
+
+------------------------- reference sim
+
+The reference simulator takes the following command-line arguments:
+Usage: ./csim-ref [-hv] -s <s> -E <E> -b <b> -t <tracefile>
+• -h: Optional help flag that prints usage info
+• -v: Optional verbose flag that displays trace info
+• -s <s>: Number of set index bits (S = 2s is the number of sets)
+• -E <E>: Associativity (number of lines per set)
+• -b <b>: Number of block bits (B = 2b is the block size)
+• -t <tracefile>: Name of the valgrind trace to replay
+
+The command-line arguments are based on the notation (s, E, and b) from the textbook. For example:
+linux> ./csim-ref -s 4 -E 1 -b 4 -t traces/yi.trace
+hits:4 misses:5 evictions:3
+The same example in verbose mode:
+linux> ./csim-ref -v -s 4 -E 1 -b 4 -t traces/yi.trace
+L 10,1 miss
+M 20,1 miss hit
+L 22,1 hit
+S 18,1 hit
+L 110,1 miss eviction
+L 210,1 miss eviction
+M 12,1 miss eviction hit
+hits:4 misses:5 evictions:3
+
+------------------------------------------
+gcc csim.c
+./a.out -s 4 -E 1 -b 4 -t traces/yi.trace
+
+---------------
+[space]operation address,size
+
+E = 2^e lines per sets
+S = 2^s sets
+B = 2^b bytes per cache block
+
+address bits:
+block offset = log2(block size) = # block offset bits
+set idx = log2(sets) = # cache idx bits
+# tag bits = addr size - (offset + idx bits)
+
+
+-------
+address = [t bits] [s bits] [b bits]
+            tag    set idx   block offset
+
+
+L - load
+S - store
+M - modify = load + store
+
+
+
+get address:
+address = strtol(addr, null, 16)
+tag = (addr >> s) >> b;
+set = ((addr << (address_size -s -b)) >> (addr_size - s))
