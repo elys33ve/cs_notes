@@ -53,12 +53,12 @@ void print_help() {
     printf("  -b <num>   Number of block offset bits.\n");
     printf("  -t <file>  Trace file.\n");
     printf("\nExamples:\n");
-    printf("  linux>  ./csim-ref -s 4 -E 1 -b 4 -t traces/yi.trace\n");
-    printf("  linux>  ./csim-ref -v -s 8 -E 2 -b 4 -t traces/yi.trace\n");
+    printf("  linux>  ./csim -s 4 -E 1 -b 4 -t traces/yi.trace\n");
+    printf("  linux>  ./csim -v -s 8 -E 2 -b 4 -t traces/yi.trace\n");
 }
 // print argument format/usage
 void print_usage() {
-    printf("Usage: ./csim [-hv] -s <set-idx-bits> -E <lines-per-set> -b <block-bits> -t <tracefile>\n");
+    printf("Usage: ./csim [-hv] -s <num> -E <num> -b <num> -t <file>\n");
 }
 
 
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
     arguments(&set_idx_bits, &lines_per_set, &block_bits, &filename, argc, argv);
     //printf("args: -s %d -E %d -b %d -t %s\n", set_index_bits, lines_per_set, num_block_bits, tracefile);
     E = lines_per_set;
-    for (int i=0; i<set_idx_bits; i++) { num_sets *= 2; }   // get number of sets 
+    for (int i=0; i<set_idx_bits; i++) { num_sets *= 2; }   // get number of sets (2^s)
     // (it was complaining abt pow() so this was easier)
 
 
@@ -248,8 +248,8 @@ int main(int argc, char *argv[]) {
 
             
             if (debug) {
-                printf("%c %lx,%d\n", operation, addr, size);
-                printf("%x,%x\n", tag, set_idx);
+                printf("line: %c %lx,%d\n", operation, addr, size);
+                printf("\ttag: %x, set idx: %x\n", tag, set_idx);
             }
         }
     }
