@@ -34,11 +34,11 @@ int E;      // lines per set
 int total_hits, total_misses, total_evictions;      // totals for printsummary()
 
 
-// struct for each tracefile line
+// struct for cache info
 typedef struct {
-    int valid;
-    unsigned long int tag;
-    int lru;
+    int valid;              // valid bit
+    unsigned long int tag;  // tag
+    int lru;                // least recently used
 } cache_line;
 
 
@@ -167,7 +167,9 @@ int main(int argc, char *argv[]) {
 
     // ------- get input arguments -------
     arguments(&set_idx_bits, &lines_per_set, &block_bits, &filename, argc, argv);
-    //printf("args: -s %d -E %d -b %d -t %s\n", set_index_bits, lines_per_set, num_block_bits, tracefile);
+    if (debug) {
+        printf("args: -s %d -E %d -b %d -t %s\n", set_idx_bits, lines_per_set, block_bits, filename);
+    }
     E = lines_per_set;
     for (int i=0; i<set_idx_bits; i++) { num_sets *= 2; }   // get number of sets (2^s)
     // (it was complaining abt pow() so this was easier)
